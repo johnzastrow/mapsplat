@@ -19,8 +19,8 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install PyQt5 (provides pyrcc5)
-        run: pip install pyqt5
+      - name: Install dependencies
+        run: pip install pyqt5 pytest
 
       - name: Compile Qt resources
         run: pyrcc5 -o resources.py resources.qrc
