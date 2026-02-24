@@ -20,9 +20,11 @@ The resulting HTML has comments that can help you copy/paste the map into anothe
 
 This project is based on the work by the folks at Protomaps. They host builds of global map tiles in PMtile format with data from Open Street Map that you can download here for your basemap. Download the latest build, then use the pmtiles CLI tool to trim the glopbal data to your needs, or let mapsplat do it. It wants the pmtiles CLI in your path anyway. You'll also need a styling JSON to make your basemap look like something. Again, protomaps gives you one to start with and mapsplat will adapt it to work in a more stand alone way.
 
-https://maps.protomaps.com/builds/
-https://maps.protomaps.com/#flavorName=light&lang=en&map=4.04/49.02/-100.57
-https://docs.protomaps.com/pmtiles/cli
+* [Builds of global map tiles](https://maps.protomaps.com/builds/)
+* [More info on basemaps](https://docs.protomaps.com/basemaps/downloads)
+* [pmtiles.io blog post about a viewer/tester to preview your tiles](https://protomaps.com/blog/new-pmtiles-io/)
+* [Map viewer of the global tiles. Also demos the map viewer you are going to make](https://maps.protomaps.com/#flavorName=light&lang=en&map=4.04/49.02/-100.57)
+* [Docs on the pmtile cli](https://docs.protomaps.com/pmtiles/cli)
 
 
 ---
