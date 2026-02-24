@@ -343,6 +343,11 @@ sudo systemctl status mapsplat-myproject
 
 > `serve.py` is single-threaded. For higher traffic, use Nginx (see below).
 
+### Linux VPS with Caddy as the server (production)
+This will be my preferred approach for hosting as I'm already proxying everything with Caddy 
+
+[https://docs.protomaps.com/deploy/server](https://docs.protomaps.com/deploy/server)
+
 ### Linux VPS with Nginx (production)
 
 Nginx handles Range requests natively and can terminate HTTPS.
