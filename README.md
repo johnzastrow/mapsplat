@@ -16,9 +16,9 @@ MapSplat is a QGIS plugin that exports (splats) your project layers to self-cont
 3. Style a point layer in your map with a single point style and labels. Circles and "gray" (special QGIS) SVG icons for markers are working now
 4. Download a big set of background tiles (see below. Get a larger area then you need. Mapsplat will trim to your extents) along with some styling (style.json also from below). I like to rename this jason to be basemap.json for clarity`
 5. Configure mapsplat by
-   a. picking your point layer,
-   b. setting unified or separate layers for the output PMtiles (I like separate), 
-7. 
+   * picking your point layer,
+  * setting unified or separate layers for the output PMtiles (I like separate), 
+1. 
 
 
 The resulting HTML has comments that can help you copy/paste the map into another HTML page for embedding.
