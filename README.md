@@ -38,17 +38,22 @@ This project is based on the work by the folks at Protomaps. They host builds of
 ## Screenshots
 
 1. Starting point: a QGIS project with styled vector layers and labels
-2. 
- *  ![QGIS project](docs/images/qgis.png)
+     
+* <img src="https://github.com/johnzastrow/mapsplat/blob/bb8167982c34b683317029f38f3de6b5ae1b12b4/docs/images/qgis.png" width="600" />
   
-* <img src="https://github.com/johnzastrow/mapsplat/blob/bb8167982c34b683317029f38f3de6b5ae1b12b4/docs/images/qgis.png" width="300" />
-  
-1. MapSplat Export tab with layers selected and basemap overlay configured
+2. MapSplat Export tab with layers selected and basemap overlay configured
     ![MapSplat Export tab](docs/images/mapsplat_config.png)
-2. MapSplat baby serve.py dev server running the exported map locally 
-   ![Local dev server](docs/images/serve.png)
-3. Resulting `index.html` with the data layers rendered on top of the Protomaps basemap
-    ![Exported map](docs/images/onlinemap.png)
+
+<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
+
+1. MapSplat baby serve.py dev server running the exported map locally 
+  
+<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/serve.png" height="300" />
+
+1. Resulting `index.html` with the data layers rendered on top of the Protomaps basemap
+    
+<img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/onlinemap.png" height="400" />
+
 
 ---
 
