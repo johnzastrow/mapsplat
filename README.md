@@ -42,8 +42,7 @@ This project is based on the work by the folks at Protomaps. They host builds of
 * <img src="https://github.com/johnzastrow/mapsplat/blob/bb8167982c34b683317029f38f3de6b5ae1b12b4/docs/images/qgis.png" width="600" />
   
 2. MapSplat Export tab with layers selected and basemap overlay configured
-    ![MapSplat Export tab](docs/images/mapsplat_config.png)
-
+    
 <img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
 
 1. MapSplat baby serve.py dev server running the exported map locally 
@@ -86,6 +85,7 @@ This project is based on the work by the folks at Protomaps. They host builds of
 
 ### Compatibility
 - **Qt5 / Qt6**: Works with QGIS 3.x (Qt5) and QGIS 4.x (Qt6)
+  *Not really. It works with QGIS 3.44, and it think it works with QGIS 3.99, but not really. I think it can only work with one at a time. So, when 4.0 is released, I'll update the plugin to be compatible with that and drop support for 3.x.*
 - **Static hosting**: No server-side processing — works on GitHub Pages, Netlify, S3, Cloudflare Pages, or any web host
 
 ---
