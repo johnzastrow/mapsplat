@@ -45,11 +45,11 @@ This project is based on the work by the folks at Protomaps. They host builds of
     
 <img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/mapsplat_config.png" height="400" />
 
-1. MapSplat baby serve.py dev server running the exported map locally 
+3. MapSplat baby serve.py dev server running the exported map locally 
   
 <img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/serve.png" height="300" />
 
-1. Resulting `index.html` with the data layers rendered on top of the Protomaps basemap
+4. Resulting `index.html` with the data layers rendered on top of the Protomaps basemap
     
 <img src="https://github.com/johnzastrow/mapsplat/blob/9df47e7286f4095294b265da82bbc4feef290711/docs/images/onlinemap.png" height="400" />
 
