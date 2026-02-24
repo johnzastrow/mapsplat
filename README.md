@@ -10,7 +10,15 @@
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
-**Quick start: install the plugin, put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH, configure and export from the MapSplat panel, then run `python serve.py` in the output folder.**
+**Quick start:**
+1. Install the plugin (yes, downloading the .zip and manually adding it to QGIS works)
+2. Put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH so QGIS can just use it as you
+3. Style a point layer in your map with a single point style and labels. Circles and "gray" (special QGIS) SVG icons for markers are working now
+4. Download a big set of background tiles (see below. Get a larger area then you need. Mapsplat will trim to your extents) along with some styling (style.json also from below). I like to rename this jason to be basemap.json for clarity`
+5. Configure mapsplat by
+   a. picking your point layer,
+   b. setting unified or separate layers for the output PMtiles (I like separate), 
+7. 
 
 
 The resulting HTML has comments that can help you copy/paste the map into another HTML page for embedding.
@@ -25,6 +33,7 @@ This project is based on the work by the folks at Protomaps. They host builds of
 * [pmtiles.io blog post about a viewer/tester to preview your tiles](https://protomaps.com/blog/new-pmtiles-io/)
 * [Map viewer of the global tiles. Also demos the map viewer you are going to make](https://maps.protomaps.com/#flavorName=light&lang=en&map=4.04/49.02/-100.57)
 * [Docs on the pmtile cli](https://docs.protomaps.com/pmtiles/cli)
+
 
 
 ---
