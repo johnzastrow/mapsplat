@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=3.40
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.8
+version=0.6.9
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,12 @@ repository=https://github.com/johnzastrow/mapsplat
 hasProcessingProvider=no
 
 changelog=
+    0.6.9 - Label rendering improvements
+    - Bold/italic font selection (Noto Sans Medium / Italic / Regular)
+    - Quadrant-aware text-anchor and em-unit offsets for point labels
+    - Label placement mode UI: "Match QGIS (exact)" or "Auto-place (avoid overlaps)"
+    - Line labels: Curved → symbol-placement line with text-max-angle; Horizontal → line-center
+    - Text opacity, halo opacity (rgba), capitalization, line height, word-wrap, multiline align
     0.6.8 - UI polish + serve.py improvements
     - Layer list shows "X of Y layers selected" summary, updates on selection change
     - Last output folder persisted in QSettings and restored on plugin open

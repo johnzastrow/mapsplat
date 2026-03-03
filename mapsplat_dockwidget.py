@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.8"
+__version__ = "0.6.9"
 
 import os
 
@@ -367,6 +367,17 @@ class MapSplatDockWidget(QDockWidget):
         self.chk_viewer_north_reset.setChecked(True)
         viewer_group_layout.addWidget(self.chk_viewer_north_reset)
 
+        # Label placement mode
+        placement_row = QHBoxLayout()
+        placement_row.addWidget(QLabel("Label placement:"))
+        self.combo_label_placement = QComboBox()
+        self.combo_label_placement.addItems([
+            "Match QGIS (exact positions)",
+            "Auto-place (avoid overlaps)",
+        ])
+        placement_row.addWidget(self.combo_label_placement)
+        viewer_group_layout.addLayout(placement_row)
+
         viewer_layout.addWidget(viewer_group)
         viewer_layout.addStretch()
 
@@ -724,6 +735,9 @@ class MapSplatDockWidget(QDockWidget):
             "viewer_reset_view": self.chk_viewer_reset_view.isChecked(),
             "viewer_north_reset": self.chk_viewer_north_reset.isChecked(),
             "bundle_offline": self.chk_bundle_offline.isChecked(),
+            "label_placement_mode": (
+                "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
+            ),
         }
 
         # Show progress and cancel button
@@ -841,6 +855,9 @@ class MapSplatDockWidget(QDockWidget):
                 "zoom_display": self.chk_viewer_zoom_display.isChecked(),
                 "reset_view": self.chk_viewer_reset_view.isChecked(),
                 "north_reset": self.chk_viewer_north_reset.isChecked(),
+                "label_placement_mode": (
+                    "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
+                ),
             },
         }
 
@@ -971,6 +988,11 @@ class MapSplatDockWidget(QDockWidget):
             if key in viewer:
                 widget.setChecked(bool(viewer[key]))
                 applied += 1
+
+        if "label_placement_mode" in viewer:
+            idx = 0 if viewer["label_placement_mode"] == "exact" else 1
+            self.combo_label_placement.setCurrentIndex(idx)
+            applied += 1
 
         self._log(f"Config loaded: {applied} settings applied from {file_path}", "info")
 

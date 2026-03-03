@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.9 — 2026-03-03
+
+### Added
+- **Label placement mode** — new "Label placement" combo in the Viewer tab's Map Controls group. "Match QGIS (exact positions)" uses quadrant/offset/dist to set `text-anchor` and `text-offset` in ems; "Auto-place (avoid overlaps)" emits `text-variable-anchor` + `text-radial-offset` so MapLibre chooses a collision-free position.
+- **Bold/italic font selection** — `_convert_labels()` now picks Noto Sans Medium (bold), Noto Sans Italic, or Noto Sans Regular based on `QgsTextFormat.font().bold()/italic()` and `forcedBold()/forcedItalic()` (QGIS 3.26+).
+- **Quadrant-aware point label placement** — `quadrantPosition` (0–8) maps to a MapLibre `text-anchor` value; `xOffset`/`yOffset`/`dist` are converted to ems and applied as `text-offset`.
+- **Line label placement modes** — Curved placement → `symbol-placement: line` with `text-max-angle: 45` and `text-keep-upright`; Horizontal placement → `symbol-placement: line-center`; `repeatDistance` → `symbol-spacing`.
+- **Text and halo opacity** — `text-opacity` emitted when `QgsTextFormat.opacity() < 1`; halo color encoded as `rgba(r,g,b,a)` when `buffer.opacity() < 1`.
+- **Capitalization** — `text-transform: uppercase/lowercase` from `QgsTextFormat.capitalization()`.
+- **Line height** — `text-line-height` emitted when `QgsTextFormat.lineHeight()` differs from 1.0 by more than 0.05.
+- **Word wrap** — `text-max-width` set from `QgsPalLayerSettings.autoWrapLength` when non-zero.
+- **Multiline alignment** — `text-justify` (left/center/right) from `QgsPalLayerSettings.multilineAlign`.
+- **`label_placement_mode` config key** — saved/restored in TOML config under `[viewer]`.
+
 ## v0.6.8 — 2026-03-03
 
 ### Added

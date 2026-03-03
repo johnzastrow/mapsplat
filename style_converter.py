@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.8"
+__version__ = "0.6.9"
 
 import os
 from qgis.core import (
@@ -49,6 +49,32 @@ try:
     from qgis.core import QgsVectorLayerSimpleLabeling
 except ImportError:
     QgsVectorLayerSimpleLabeling = None
+
+# Quadrant index (QgsPalLayerSettings.QuadrantPosition) → MapLibre text-anchor
+_QGIS_QUADRANT_TO_ANCHOR = {
+    0: "bottom-right",  # QuadrantAboveLeft
+    1: "bottom",        # QuadrantAbove
+    2: "bottom-left",   # QuadrantAboveRight
+    3: "right",         # QuadrantLeft
+    4: "center",        # QuadrantOver
+    5: "left",          # QuadrantRight
+    6: "top-right",     # QuadrantBelowLeft
+    7: "top",           # QuadrantBelow
+    8: "top-left",      # QuadrantBelowRight
+}
+
+# Direction to push label outward (in em units) per anchor value
+_ANCHOR_DIST_DIR = {
+    "bottom":       (0,  -1),
+    "top":          (0,   1),
+    "right":        (-1,  0),
+    "left":         (1,   0),
+    "bottom-left":  (1,  -1),
+    "bottom-right": (-1, -1),
+    "top-left":     (1,   1),
+    "top-right":    (-1,  1),
+    "center":       (0,   0),
+}
 
 
 class StyleConverter:
@@ -183,8 +209,31 @@ class StyleConverter:
         else:
             return self._create_default_style(layer, source_layer, geom_type, source_name)
 
+    def _get_label_font(self, text_format):
+        """Select the appropriate Noto Sans variant based on bold/italic flags.
+
+        :param text_format: QgsTextFormat
+        :returns: List with one font name string (MapLibre text-font)
+        """
+        bold = text_format.font().bold()
+        italic = text_format.font().italic()
+        try:
+            bold = bold or text_format.forcedBold()
+            italic = italic or text_format.forcedItalic()
+        except AttributeError:
+            pass
+        if bold:
+            return ["Noto Sans Medium"]
+        elif italic:
+            return ["Noto Sans Italic"]
+        return ["Noto Sans Regular"]
+
     def _convert_labels(self, layer):
         """Convert layer labels to MapLibre symbol layer.
+
+        Reads placement mode, quadrant, offsets, bold/italic, opacity,
+        capitalization, line height, word-wrap, and multiline alignment
+        from QgsPalLayerSettings / QgsTextFormat.
 
         :param layer: QgsVectorLayer
         :returns: MapLibre layer dictionary or None
@@ -199,13 +248,8 @@ class StyleConverter:
         source_layer = self._sanitize_name(layer.name())
         source_name = "mapsplat" if self._single_file else source_layer
 
-        # Get label settings
         try:
-            if QgsVectorLayerSimpleLabeling and isinstance(labeling, QgsVectorLayerSimpleLabeling):
-                settings = labeling.settings()
-            else:
-                # Try to get settings from provider
-                settings = labeling.settings()
+            settings = labeling.settings()
         except Exception:
             return None
 
@@ -217,74 +261,170 @@ class StyleConverter:
         if not field_name:
             return None
 
-        # Clean up field name (remove quotes if present)
         clean_field = field_name.strip().replace('"', '').replace("'", "")
+        text_field = ["to-string", ["get", clean_field]]
 
-        # Check if it's an expression or field name
-        if settings.isExpression:
-            # For expressions, try to extract field name or use as-is
-            # Simple case: just a field name in quotes
-            text_field = ["to-string", ["get", clean_field]]
-        else:
-            # Use format string for simple field reference
-            text_field = ["to-string", ["get", clean_field]]
-
-        # Extract text format
+        # Text format
         text_format = settings.format()
 
-        # Font settings
-        font_family = text_format.font().family()
+        font_stack = self._get_label_font(text_format)
         font_size = self._convert_size(text_format.size(), text_format.sizeUnit())
         if font_size < 8:
-            font_size = 12  # Default to reasonable size
+            font_size = 12
+        font_size_px = max(font_size, 8)
         text_color = text_format.color().name()
 
-        # Halo/buffer settings
+        # Halo / buffer
         buffer_settings = text_format.buffer()
         halo_color = self.DEFAULT_HALO_COLOR
-        halo_width = 1  # Default small halo for readability
+        halo_width = 1
         if buffer_settings.enabled():
-            halo_color = buffer_settings.color().name()
+            halo = buffer_settings.color()
+            try:
+                halo_opacity = buffer_settings.opacity()
+            except AttributeError:
+                halo_opacity = halo.alphaF()
             halo_width = max(1, self._convert_size(buffer_settings.size(), buffer_settings.sizeUnit()))
+            if halo_opacity < 1.0:
+                halo_color = (
+                    f"rgba({halo.red()},{halo.green()},{halo.blue()},{halo_opacity:.3f})"
+                )
+            else:
+                halo_color = halo.name()
 
-        # Build the symbol layer
-        label_layer = {
+        # Label placement mode from export settings ("exact" or "auto")
+        label_placement_mode = self.settings.get("label_placement_mode", "exact")
+
+        layout = {
+            "visibility": "visible",
+            "text-field": text_field,
+            "text-font": font_stack,
+            "text-size": font_size,
+            "text-allow-overlap": False,
+            "text-ignore-placement": False,
+            "text-optional": True,
+            "text-padding": 2,
+        }
+
+        paint = {
+            "text-color": text_color,
+            "text-halo-color": halo_color,
+            "text-halo-width": halo_width,
+        }
+
+        # Text opacity
+        try:
+            opacity = text_format.opacity()
+            if opacity < 1.0:
+                paint["text-opacity"] = opacity
+        except AttributeError:
+            pass
+
+        # Capitalization → text-transform
+        try:
+            cap = text_format.capitalization()
+            cap_map = {1: "uppercase", 2: "lowercase"}
+            if cap in cap_map:
+                layout["text-transform"] = cap_map[cap]
+        except AttributeError:
+            pass
+
+        # Line height (only emit if meaningfully different from 1.0)
+        try:
+            lh = text_format.lineHeight()
+            if abs(lh - 1.0) > 0.05:
+                layout["text-line-height"] = round(lh, 2)
+        except AttributeError:
+            pass
+
+        # Word wrap
+        wrap_len = getattr(settings, 'autoWrapLength', 0)
+        if wrap_len > 0:
+            layout["text-max-width"] = wrap_len
+
+        # Multiline alignment (0=Left, 1=Center, 2=Right, 3=FollowPlacement)
+        ml_align = getattr(settings, 'multilineAlign', 1)
+        align_map = {0: "left", 1: "center", 2: "right"}
+        layout["text-justify"] = align_map.get(ml_align, "center")
+
+        # Geometry-specific placement
+        geom_type = layer.geometryType()
+        placement = int(getattr(settings, 'placement', 0))
+
+        if geom_type == 1:  # Line
+            # Curved (4) → symbol-placement: line
+            # Line (2)   → symbol-placement: line
+            # Horizontal (5) → symbol-placement: line-center
+            if placement == 5:
+                layout["symbol-placement"] = "line-center"
+            else:
+                layout["symbol-placement"] = "line"
+                if placement == 4:  # Curved
+                    layout["text-max-angle"] = 45
+                    layout["text-keep-upright"] = True
+            layout["text-rotation-alignment"] = "map"
+            repeat = getattr(settings, 'repeatDistance', 0)
+            if repeat > 0:
+                repeat_unit = getattr(
+                    settings, 'repeatDistanceUnit', QgsUnitTypes.RenderMillimeters
+                )
+                spacing_px = self._convert_size(repeat, repeat_unit)
+                layout["symbol-spacing"] = max(50, int(spacing_px))
+            else:
+                layout["symbol-spacing"] = 250
+
+        elif geom_type == 2:  # Polygon — centroid placement
+            layout["symbol-placement"] = "point"
+            layout["text-anchor"] = "center"
+
+        elif geom_type == 0:  # Point
+            if label_placement_mode == "auto":
+                layout["text-variable-anchor"] = [
+                    "top", "bottom", "left", "right",
+                    "top-left", "top-right", "bottom-left", "bottom-right",
+                ]
+                dist = getattr(settings, 'dist', 0)
+                dist_unit = getattr(
+                    settings, 'distUnits', QgsUnitTypes.RenderMillimeters
+                )
+                dist_px = self._convert_size(dist, dist_unit)
+                dist_ems = dist_px / font_size_px
+                if dist_ems > 0:
+                    layout["text-radial-offset"] = dist_ems
+            else:  # exact mode
+                quadrant = int(getattr(settings, 'quadrantPosition', 1))
+                anchor = _QGIS_QUADRANT_TO_ANCHOR.get(quadrant, "bottom")
+                layout["text-anchor"] = anchor
+
+                offset_unit = getattr(
+                    settings, 'offsetUnits', QgsUnitTypes.RenderMillimeters
+                )
+                offset_x = self._convert_size(
+                    getattr(settings, 'xOffset', 0), offset_unit
+                )
+                offset_y = self._convert_size(
+                    getattr(settings, 'yOffset', 0), offset_unit
+                )
+                dist = self._convert_size(
+                    getattr(settings, 'dist', 0),
+                    getattr(settings, 'distUnits', QgsUnitTypes.RenderMillimeters),
+                )
+                dx, dy = _ANCHOR_DIST_DIR.get(anchor, (0, 0))
+                offset_ems = [
+                    offset_x / font_size_px + dx * (dist / font_size_px),
+                    offset_y / font_size_px + dy * (dist / font_size_px),
+                ]
+                if offset_ems != [0.0, 0.0]:
+                    layout["text-offset"] = offset_ems
+
+        return {
             "id": f"{source_layer}_labels",
             "type": "symbol",
             "source": source_name,
             "source-layer": source_layer,
-            "layout": {
-                "visibility": "visible",
-                "text-field": text_field,
-                "text-font": ["Noto Sans Regular"],
-                "text-size": font_size,
-                "text-anchor": "center",
-                "text-justify": "center",
-                "text-allow-overlap": False,
-                "text-ignore-placement": False,
-                "text-optional": True,
-                "text-padding": 2,
-            },
-            "paint": {
-                "text-color": text_color,
-                "text-halo-color": halo_color,
-                "text-halo-width": halo_width,
-            }
+            "layout": layout,
+            "paint": paint,
         }
-
-        # Placement based on geometry type
-        geom_type = layer.geometryType()
-        if geom_type == 1:  # Line
-            label_layer["layout"]["symbol-placement"] = "line"
-            label_layer["layout"]["text-rotation-alignment"] = "map"
-            label_layer["layout"]["symbol-spacing"] = 250
-        elif geom_type == 2:  # Polygon
-            label_layer["layout"]["symbol-placement"] = "point"
-        elif geom_type == 0:  # Point
-            label_layer["layout"]["text-offset"] = [0, 1.5]
-            label_layer["layout"]["text-anchor"] = "top"
-
-        return label_layer
 
     def _convert_single_symbol(self, layer, renderer, source_layer, geom_type, source_name):
         """Convert single symbol renderer with all symbol layers."""

@@ -1,6 +1,6 @@
 # MapSplat TODO List
 
-**Version:** 0.6.8
+**Version:** 0.6.9
 **Last Updated:** 2026-03-03
 
 ---
@@ -129,6 +129,10 @@
 - [x] serve.py --port and --no-browser flags — v0.6.5
 
 ### Symbology
+- [x] 🟠 Improved label rendering — v0.6.9
+  - Bold/italic font, quadrant-aware anchor/offset, text/halo opacity, capitalization, line height, word-wrap, multiline align
+  - Label placement mode UI: exact QGIS positions or MapLibre auto-place
+  - Line labels: Curved → `symbol-placement: line`; Horizontal → `line-center`
 - [x] 🟠 Single Symbol renderer (fill, line, marker) — v0.1.0
 - [x] 🟠 Categorized renderer — v0.1.0
 - [x] 🟠 Categorized renderer null category handling — v0.6.7
