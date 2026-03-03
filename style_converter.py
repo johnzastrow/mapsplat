@@ -984,51 +984,52 @@ class StyleConverter:
 
         expr_str = expr_str.strip()
 
-        # Simple equality: "field" = 'value' or "field" = value
+        # Use fullmatch so that partial matches (e.g. the start of an AND expression)
+        # don't silently return a result for an expression we can't fully convert.
         import re
 
         # Pattern for: "field" = 'value'
-        match = re.match(r'"([^"]+)"\s*=\s*\'([^\']+)\'', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*=\s*\'([^\']+)\'', expr_str)
         if match:
             return ["==", ["get", match.group(1)], match.group(2)]
 
         # Pattern for: "field" = number
-        match = re.match(r'"([^"]+)"\s*=\s*(-?\d+\.?\d*)', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*=\s*(-?\d+\.?\d*)', expr_str)
         if match:
             return ["==", ["get", match.group(1)], float(match.group(2))]
 
         # Pattern for: "field" > number
-        match = re.match(r'"([^"]+)"\s*>\s*(-?\d+\.?\d*)', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*>\s*(-?\d+\.?\d*)', expr_str)
         if match:
             return [">", ["get", match.group(1)], float(match.group(2))]
 
         # Pattern for: "field" < number
-        match = re.match(r'"([^"]+)"\s*<\s*(-?\d+\.?\d*)', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*<\s*(-?\d+\.?\d*)', expr_str)
         if match:
             return ["<", ["get", match.group(1)], float(match.group(2))]
 
         # Pattern for: "field" >= number
-        match = re.match(r'"([^"]+)"\s*>=\s*(-?\d+\.?\d*)', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*>=\s*(-?\d+\.?\d*)', expr_str)
         if match:
             return [">=", ["get", match.group(1)], float(match.group(2))]
 
         # Pattern for: "field" <= number
-        match = re.match(r'"([^"]+)"\s*<=\s*(-?\d+\.?\d*)', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*<=\s*(-?\d+\.?\d*)', expr_str)
         if match:
             return ["<=", ["get", match.group(1)], float(match.group(2))]
 
         # Pattern for: "field" != 'value'
-        match = re.match(r'"([^"]+)"\s*!=\s*\'([^\']+)\'', expr_str)
+        match = re.fullmatch(r'"([^"]+)"\s*!=\s*\'([^\']+)\'', expr_str)
         if match:
             return ["!=", ["get", match.group(1)], match.group(2)]
 
         # Pattern for: "field" IS NOT NULL
-        match = re.match(r'"([^"]+)"\s+IS\s+NOT\s+NULL', expr_str, re.IGNORECASE)
+        match = re.fullmatch(r'"([^"]+)"\s+IS\s+NOT\s+NULL', expr_str, re.IGNORECASE)
         if match:
             return ["has", match.group(1)]
 
         # Pattern for: "field" IS NULL
-        match = re.match(r'"([^"]+)"\s+IS\s+NULL', expr_str, re.IGNORECASE)
+        match = re.fullmatch(r'"([^"]+)"\s+IS\s+NULL', expr_str, re.IGNORECASE)
         if match:
             return ["!", ["has", match.group(1)]]
 

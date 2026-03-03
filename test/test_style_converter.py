@@ -4,7 +4,7 @@ MapSplat - Style Converter Tests
 Tests for the QGIS to MapLibre style conversion.
 """
 
-__version__ = "0.2.0"
+__version__ = "0.6.9"
 
 import unittest
 import sys
@@ -321,6 +321,502 @@ class TestSpriteBasemapMerge(unittest.TestCase):
     def test_only_basemap_sprite_left_unchanged(self):
         result = self._run_sprite_merge("https://example.com/basemap/sprites", None)
         self.assertEqual(result.get("sprite"), "https://example.com/basemap/sprites")
+
+
+class TestQuadrantToAnchorMapping(unittest.TestCase):
+    """Test module-level quadrant-position → MapLibre text-anchor lookup table."""
+
+    def _dict(self):
+        from style_converter import _QGIS_QUADRANT_TO_ANCHOR
+        return _QGIS_QUADRANT_TO_ANCHOR
+
+    def test_all_nine_quadrant_values_covered(self):
+        d = self._dict()
+        for i in range(9):
+            self.assertIn(i, d, f"Quadrant {i} missing from mapping")
+
+    def test_above_maps_to_bottom_anchor(self):
+        # QuadrantAbove (1): label sits above the point → bottom of text box anchors to point
+        self.assertEqual(self._dict()[1], "bottom")
+
+    def test_over_maps_to_center(self):
+        # QuadrantOver (4): label centred on the point
+        self.assertEqual(self._dict()[4], "center")
+
+    def test_below_maps_to_top_anchor(self):
+        # QuadrantBelow (7): label sits below the point → top of text box anchors to point
+        self.assertEqual(self._dict()[7], "top")
+
+    def test_left_maps_to_right_anchor(self):
+        # QuadrantLeft (3): label sits left of point → right edge of text at point
+        self.assertEqual(self._dict()[3], "right")
+
+    def test_right_maps_to_left_anchor(self):
+        # QuadrantRight (5): label sits right of point → left edge of text at point
+        self.assertEqual(self._dict()[5], "left")
+
+    def test_above_left_maps_to_bottom_right(self):
+        self.assertEqual(self._dict()[0], "bottom-right")
+
+    def test_above_right_maps_to_bottom_left(self):
+        self.assertEqual(self._dict()[2], "bottom-left")
+
+    def test_below_left_maps_to_top_right(self):
+        self.assertEqual(self._dict()[6], "top-right")
+
+    def test_below_right_maps_to_top_left(self):
+        self.assertEqual(self._dict()[8], "top-left")
+
+    def test_all_values_are_valid_maplibre_anchors(self):
+        valid = {
+            "top", "bottom", "left", "right", "center",
+            "top-left", "top-right", "bottom-left", "bottom-right",
+        }
+        for quadrant, anchor in self._dict().items():
+            self.assertIn(
+                anchor, valid,
+                f"Quadrant {quadrant} → '{anchor}' is not a valid MapLibre anchor",
+            )
+
+
+class TestAnchorDistDir(unittest.TestCase):
+    """Test module-level anchor → outward-push direction table."""
+
+    def _dict(self):
+        from style_converter import _ANCHOR_DIST_DIR
+        return _ANCHOR_DIST_DIR
+
+    def test_all_nine_maplibre_anchors_covered(self):
+        expected = {
+            "top", "bottom", "left", "right", "center",
+            "top-left", "top-right", "bottom-left", "bottom-right",
+        }
+        self.assertEqual(set(self._dict().keys()), expected)
+
+    def test_all_directions_are_two_element_tuples(self):
+        for anchor, direction in self._dict().items():
+            self.assertIsInstance(direction, tuple, f"{anchor} value must be a tuple")
+            self.assertEqual(len(direction), 2, f"{anchor} direction must have 2 components")
+
+    def test_bottom_pushes_upward(self):
+        _, dy = self._dict()["bottom"]
+        self.assertLess(dy, 0, "bottom anchor: positive dist must push label up (negative y)")
+
+    def test_top_pushes_downward(self):
+        _, dy = self._dict()["top"]
+        self.assertGreater(dy, 0, "top anchor: positive dist must push label down (positive y)")
+
+    def test_left_pushes_rightward(self):
+        dx, _ = self._dict()["left"]
+        self.assertGreater(dx, 0, "left anchor: positive dist must push label right (positive x)")
+
+    def test_right_pushes_leftward(self):
+        dx, _ = self._dict()["right"]
+        self.assertLess(dx, 0, "right anchor: positive dist must push label left (negative x)")
+
+    def test_center_has_zero_direction(self):
+        self.assertEqual(self._dict()["center"], (0, 0))
+
+    def test_bottom_has_no_horizontal_component(self):
+        dx, _ = self._dict()["bottom"]
+        self.assertEqual(dx, 0)
+
+    def test_top_has_no_horizontal_component(self):
+        dx, _ = self._dict()["top"]
+        self.assertEqual(dx, 0)
+
+    def test_left_has_no_vertical_component(self):
+        _, dy = self._dict()["left"]
+        self.assertEqual(dy, 0)
+
+    def test_right_has_no_vertical_component(self):
+        _, dy = self._dict()["right"]
+        self.assertEqual(dy, 0)
+
+
+class TestGetLabelFont(unittest.TestCase):
+    """Test _get_label_font() — no QGIS required, uses plain mocks."""
+
+    def _converter(self):
+        from style_converter import StyleConverter
+        return StyleConverter([], {})
+
+    def _text_format(self, bold=False, italic=False,
+                     forced_bold=False, forced_italic=False,
+                     has_forced_attrs=True):
+        """Build a minimal mock QgsTextFormat for _get_label_font."""
+        from unittest.mock import MagicMock
+        font = MagicMock()
+        font.bold.return_value = bold
+        font.italic.return_value = italic
+        tf = MagicMock()
+        tf.font.return_value = font
+        if has_forced_attrs:
+            tf.forcedBold.return_value = forced_bold
+            tf.forcedItalic.return_value = forced_italic
+        else:
+            tf.forcedBold.side_effect = AttributeError("QGIS < 3.26")
+            tf.forcedItalic.side_effect = AttributeError("QGIS < 3.26")
+        return tf
+
+    def test_regular_font_returns_noto_sans_regular(self):
+        result = self._converter()._get_label_font(self._text_format())
+        self.assertEqual(result, ["Noto Sans Regular"])
+
+    def test_bold_returns_noto_sans_medium(self):
+        result = self._converter()._get_label_font(self._text_format(bold=True))
+        self.assertEqual(result, ["Noto Sans Medium"])
+
+    def test_italic_returns_noto_sans_italic(self):
+        result = self._converter()._get_label_font(self._text_format(italic=True))
+        self.assertEqual(result, ["Noto Sans Italic"])
+
+    def test_bold_takes_priority_over_italic(self):
+        result = self._converter()._get_label_font(
+            self._text_format(bold=True, italic=True)
+        )
+        self.assertEqual(result, ["Noto Sans Medium"])
+
+    def test_forced_bold_overrides_non_bold_font(self):
+        tf = self._text_format(bold=False, forced_bold=True)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Medium"])
+
+    def test_forced_italic_overrides_non_italic_font(self):
+        tf = self._text_format(italic=False, forced_italic=True)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Italic"])
+
+    def test_forced_bold_takes_priority_over_forced_italic(self):
+        tf = self._text_format(forced_bold=True, forced_italic=True)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Medium"])
+
+    def test_no_forced_attrs_falls_back_to_font_flags_bold(self):
+        # QGIS < 3.26: forcedBold/forcedItalic raise AttributeError
+        tf = self._text_format(bold=True, has_forced_attrs=False)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Medium"])
+
+    def test_no_forced_attrs_falls_back_to_font_flags_italic(self):
+        tf = self._text_format(italic=True, has_forced_attrs=False)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Italic"])
+
+    def test_no_forced_attrs_regular_stays_regular(self):
+        tf = self._text_format(bold=False, italic=False, has_forced_attrs=False)
+        self.assertEqual(self._converter()._get_label_font(tf), ["Noto Sans Regular"])
+
+    def test_returns_single_element_list(self):
+        result = self._converter()._get_label_font(self._text_format())
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+
+    def test_returned_font_name_is_string(self):
+        result = self._converter()._get_label_font(self._text_format())
+        self.assertIsInstance(result[0], str)
+
+
+class TestExpressionConversion(unittest.TestCase):
+    """Test _convert_qgis_expression_to_maplibre — pure Python regex logic."""
+
+    def _convert(self, expr):
+        from style_converter import StyleConverter
+        return StyleConverter([], {})._convert_qgis_expression_to_maplibre(expr)
+
+    def test_empty_string_returns_none(self):
+        self.assertIsNone(self._convert(""))
+
+    def test_whitespace_only_returns_none(self):
+        self.assertIsNone(self._convert("   "))
+
+    def test_none_returns_none(self):
+        self.assertIsNone(self._convert(None))
+
+    def test_equality_string_value(self):
+        result = self._convert('"type" = \'road\'')
+        self.assertEqual(result, ["==", ["get", "type"], "road"])
+
+    def test_equality_integer_value(self):
+        result = self._convert('"population" = 1000')
+        self.assertEqual(result, ["==", ["get", "population"], 1000.0])
+
+    def test_equality_decimal_value(self):
+        result = self._convert('"ratio" = 0.5')
+        self.assertEqual(result, ["==", ["get", "ratio"], 0.5])
+
+    def test_greater_than(self):
+        result = self._convert('"speed" > 50')
+        self.assertEqual(result, [">", ["get", "speed"], 50.0])
+
+    def test_less_than(self):
+        result = self._convert('"speed" < 30')
+        self.assertEqual(result, ["<", ["get", "speed"], 30.0])
+
+    def test_greater_than_or_equal(self):
+        result = self._convert('"rank" >= 3')
+        self.assertEqual(result, [">=", ["get", "rank"], 3.0])
+
+    def test_less_than_or_equal(self):
+        result = self._convert('"rank" <= 5')
+        self.assertEqual(result, ["<=", ["get", "rank"], 5.0])
+
+    def test_not_equal_string_value(self):
+        result = self._convert('"status" != \'closed\'')
+        self.assertEqual(result, ["!=", ["get", "status"], "closed"])
+
+    def test_is_not_null(self):
+        result = self._convert('"name" IS NOT NULL')
+        self.assertEqual(result, ["has", "name"])
+
+    def test_is_null(self):
+        result = self._convert('"name" IS NULL')
+        self.assertEqual(result, ["!", ["has", "name"]])
+
+    def test_is_not_null_case_insensitive(self):
+        result = self._convert('"name" is not null')
+        self.assertEqual(result, ["has", "name"])
+
+    def test_is_null_case_insensitive(self):
+        result = self._convert('"name" is null')
+        self.assertEqual(result, ["!", ["has", "name"]])
+
+    def test_negative_number(self):
+        result = self._convert('"elevation" > -100')
+        self.assertEqual(result, [">", ["get", "elevation"], -100.0])
+
+    def test_complex_and_expression_returns_none(self):
+        result = self._convert('"a" = 1 AND "b" = 2')
+        self.assertIsNone(result)
+
+    def test_field_name_with_underscore(self):
+        result = self._convert('"my_field" = \'val\'')
+        self.assertEqual(result, ["==", ["get", "my_field"], "val"])
+
+    def test_result_is_list_for_valid_expression(self):
+        result = self._convert('"type" = \'road\'')
+        self.assertIsInstance(result, list)
+
+    def test_get_expression_is_list_with_field_name(self):
+        result = self._convert('"type" = \'road\'')
+        self.assertEqual(result[1], ["get", "type"])
+
+
+class TestCategorizedMatchExpression(unittest.TestCase):
+    """Test match-expression structure from _convert_categorized.
+
+    Patches QgsSimpleFillSymbolLayer with a real Python class so that
+    isinstance() checks inside _convert_categorized work without QGIS.
+    """
+
+    # Real Python class used as the patched symbol-layer type
+    class _FakeFillSL:
+        def __init__(self, fill_hex="#ff0000", stroke_hex="#000000", alpha=1.0):
+            self._fill_hex = fill_hex
+            self._stroke_hex = stroke_hex
+            self._alpha = alpha
+
+        def fillColor(self):
+            from unittest.mock import MagicMock
+            c = MagicMock()
+            c.name.return_value = self._fill_hex
+            c.alphaF.return_value = self._alpha
+            return c
+
+        def strokeColor(self):
+            from unittest.mock import MagicMock
+            c = MagicMock()
+            c.name.return_value = self._stroke_hex
+            c.alphaF.return_value = 1.0
+            return c
+
+    def _make_symbol(self, sl):
+        from unittest.mock import MagicMock
+        sym = MagicMock()
+        sym.symbolLayerCount.return_value = 1
+        sym.symbolLayer.return_value = sl
+        return sym
+
+    def _make_category(self, value, sl, active=True):
+        from unittest.mock import MagicMock
+        cat = MagicMock()
+        cat.renderState.return_value = active
+        cat.value.return_value = value
+        cat.symbol.return_value = self._make_symbol(sl)
+        return cat
+
+    def _make_layer(self, attr, categories):
+        from unittest.mock import MagicMock
+        renderer = MagicMock()
+        renderer.classAttribute.return_value = attr
+        renderer.categories.return_value = categories
+        layer = MagicMock()
+        layer.name.return_value = "test_layer"
+        layer.geometryType.return_value = 2  # Polygon
+        layer.renderer.return_value = renderer
+        return layer
+
+    def _convert(self, layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        c._layer_counter = {}
+        c._single_file = True
+        with patch.object(sc, "QgsSimpleFillSymbolLayer", self._FakeFillSL):
+            return c._convert_categorized(
+                layer, layer.renderer(), "test_layer", 2, "mapsplat"
+            )
+
+    def test_null_category_uses_coalesce_sentinel_as_match_input(self):
+        """Null-value categories must use coalesce(get(attr), '__null__') as match input."""
+        null_cat = self._make_category(None, self._FakeFillSL())
+        layer = self._make_layer("type", [null_cat])
+        result = self._convert(layer)
+        fill_expr = result[0]["paint"]["fill-color"]
+        # ["match", <input>, "__null__", <color>, <fallback>]
+        match_input = fill_expr[1]
+        self.assertEqual(match_input, ["coalesce", ["get", "type"], "__null__"])
+
+    def test_null_category_color_keyed_under_sentinel(self):
+        """Null category fill color appears in the match expression under '__null__'."""
+        null_cat = self._make_category(None, self._FakeFillSL(fill_hex="#aabbcc"))
+        layer = self._make_layer("type", [null_cat])
+        result = self._convert(layer)
+        fill_expr = result[0]["paint"]["fill-color"]
+        self.assertIn("__null__", fill_expr)
+        idx = fill_expr.index("__null__")
+        self.assertEqual(fill_expr[idx + 1], "#aabbcc")
+
+    def test_regular_category_uses_bare_get_as_match_input(self):
+        """Regular-value categories use bare ['get', attr] — no coalesce."""
+        cat = self._make_category("road", self._FakeFillSL())
+        layer = self._make_layer("type", [cat])
+        result = self._convert(layer)
+        fill_expr = result[0]["paint"]["fill-color"]
+        self.assertEqual(fill_expr[1], ["get", "type"])
+
+    def test_catchall_category_becomes_match_fallback(self):
+        """Catch-all category (value == '') is the final fallback in the match expression."""
+        regular = self._make_category("road", self._FakeFillSL(fill_hex="#111111"))
+        catchall = self._make_category("", self._FakeFillSL(fill_hex="#999999"))
+        layer = self._make_layer("type", [regular, catchall])
+        result = self._convert(layer)
+        fill_expr = result[0]["paint"]["fill-color"]
+        # Last element of match expression is the fallback
+        self.assertEqual(fill_expr[-1], "#999999")
+
+    def test_no_catchall_gives_unmatched_features_zero_opacity(self):
+        """Without a catch-all, the opacity fallback must be 0 (hidden)."""
+        cat = self._make_category("road", self._FakeFillSL())
+        layer = self._make_layer("type", [cat])
+        result = self._convert(layer)
+        opacity_expr = result[0]["paint"]["fill-opacity"]
+        self.assertEqual(opacity_expr[-1], 0.0)
+
+    def test_inactive_categories_are_excluded(self):
+        """Categories with renderState=False must not appear in the match expression."""
+        active = self._make_category("road", self._FakeFillSL(fill_hex="#ff0000"))
+        inactive = self._make_category("rail", self._FakeFillSL(fill_hex="#0000ff"), active=False)
+        layer = self._make_layer("type", [active, inactive])
+        result = self._convert(layer)
+        fill_expr = result[0]["paint"]["fill-color"]
+        self.assertNotIn("#0000ff", fill_expr)
+
+    def test_output_is_fill_layer(self):
+        cat = self._make_category("road", self._FakeFillSL())
+        layer = self._make_layer("type", [cat])
+        result = self._convert(layer)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["type"], "fill")
+
+    def test_output_references_correct_source_layer(self):
+        cat = self._make_category("road", self._FakeFillSL())
+        layer = self._make_layer("type", [cat])
+        result = self._convert(layer)
+        self.assertEqual(result[0]["source-layer"], "test_layer")
+
+
+class TestGraduatedStepExpression(unittest.TestCase):
+    """Test step-expression structure from _convert_graduated (polygon case).
+
+    Patches QgsSimpleFillSymbolLayer with a real Python class so isinstance works.
+    """
+
+    class _FakeFillSL:
+        def __init__(self, fill_hex="#ff0000", alpha=1.0):
+            self._fill_hex = fill_hex
+            self._alpha = alpha
+
+        def fillColor(self):
+            from unittest.mock import MagicMock
+            c = MagicMock()
+            c.name.return_value = self._fill_hex
+            c.alphaF.return_value = self._alpha
+            return c
+
+    def _make_range(self, lower, color_hex):
+        from unittest.mock import MagicMock
+        sl = self._FakeFillSL(fill_hex=color_hex)
+        sym = MagicMock()
+        sym.symbolLayerCount.return_value = 1
+        sym.symbolLayer.return_value = sl
+        r = MagicMock()
+        r.lowerValue.return_value = lower
+        r.symbol.return_value = sym
+        return r
+
+    def _make_layer(self, attr, ranges):
+        from unittest.mock import MagicMock
+        renderer = MagicMock()
+        renderer.classAttribute.return_value = attr
+        renderer.ranges.return_value = ranges
+        layer = MagicMock()
+        layer.name.return_value = "pop_layer"
+        layer.geometryType.return_value = 2
+        layer.renderer.return_value = renderer
+        return layer
+
+    def _convert(self, layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        c._layer_counter = {}
+        c._single_file = True
+        with patch.object(sc, "QgsSimpleFillSymbolLayer", self._FakeFillSL):
+            return c._convert_graduated(
+                layer, layer.renderer(), "pop_layer", 2, "mapsplat"
+            )
+
+    def test_output_is_fill_type(self):
+        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+        result = self._convert(self._make_layer("pop", ranges))
+        self.assertEqual(result[0]["type"], "fill")
+
+    def test_fill_color_is_step_expression(self):
+        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+        result = self._convert(self._make_layer("pop", ranges))
+        fill_expr = result[0]["paint"]["fill-color"]
+        self.assertIsInstance(fill_expr, list)
+        self.assertEqual(fill_expr[0], "step")
+
+    def test_step_expression_uses_get_for_attribute(self):
+        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+        result = self._convert(self._make_layer("pop", ranges))
+        fill_expr = result[0]["paint"]["fill-color"]
+        # ["step", ["get", attr], first_color, lower1, color1, ...]
+        self.assertEqual(fill_expr[1], ["get", "pop"])
+
+    def test_first_range_color_is_default_before_first_step(self):
+        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+        result = self._convert(self._make_layer("pop", ranges))
+        fill_expr = result[0]["paint"]["fill-color"]
+        # Index 2 is the fallback color (below first step)
+        self.assertEqual(fill_expr[2], "#aaaaaa")
+
+    def test_empty_ranges_produces_default_style(self):
+        from unittest.mock import MagicMock
+        layer = self._make_layer("pop", [])
+        result = self._convert(layer)
+        # Falls back to default fill style — should not raise and must return a list
+        self.assertIsInstance(result, list)
+        self.assertGreater(len(result), 0)
 
 
 if __name__ == "__main__":
