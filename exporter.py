@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.6.5"
+__version__ = "0.6.6"
 
 import os
 import sys
@@ -46,7 +46,7 @@ except ImportError:
     from style_converter import StyleConverter  # test environment (no package)
 
 
-def generate_html_viewer(settings, style_json, bounds, use_external_style=False):
+def generate_html_viewer(settings, style_json, bounds, use_external_style=False, bundle_offline=False):
     """Generate the HTML viewer as a standalone function (no Qt dependencies).
 
     :param settings: Settings dict; uses ``project_name`` and ``viewer_*`` keys.
@@ -54,11 +54,23 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False)
     :param style_json: Style JSON dict embedded inline (ignored when use_external_style).
     :param bounds: [west, south, east, north] in WGS-84.
     :param use_external_style: If True, reference ./style.json instead of embedding.
+    :param bundle_offline: If True, reference local lib/ assets instead of CDN URLs.
     :returns: Complete HTML string for the web viewer.
     """
     center_lng = (bounds[0] + bounds[2]) / 2
     center_lat = (bounds[1] + bounds[3]) / 2
     project_name = settings.get("project_name", "Map")
+
+    if bundle_offline:
+        _assets_comment = "<!-- MapLibre GL JS from local lib/ (bundled for offline use) -->"
+        _maplibre_css = '<link rel="stylesheet" href="lib/maplibre-gl.css">'
+        _maplibre_js = '<script src="lib/maplibre-gl.js"></script>'
+        _pmtiles_js = '<script src="lib/pmtiles.js"></script>'
+    else:
+        _assets_comment = "<!-- MapLibre GL JS from CDN (replace with local files for offline use) -->"
+        _maplibre_css = '<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">'
+        _maplibre_js = '<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>'
+        _pmtiles_js = '<script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>'
 
     if use_external_style:
         # Fetch style.json at runtime and pass as inline object.
@@ -220,10 +232,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False)
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{project_name} - MapSplat</title>
     <!-- <----- BEGIN MAPSPLAT: copy the lines below into your page <head> ----- -->
-    <!-- MapLibre GL JS from CDN (replace with local files for offline use) -->
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
-    <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-    <script src="https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js"></script>
+    {_assets_comment}
+    {_maplibre_css}
+    {_maplibre_js}
+    {_pmtiles_js}
     <style>
         body {{ margin: 0; padding: 0; }}
         #map {{ position: absolute; top: 0; bottom: 0; width: 100%; }}
@@ -636,13 +648,13 @@ class MapSplatExporter(QObject):
                 json.dump(style_json, f, indent=2)
             self.log_message.emit(f"Wrote style.json", "info")
 
+        # Download/copy MapLibre assets first so HTML can reference local paths
+        bundle_offline = self._copy_maplibre_assets(output_dir)
+
         # Generate HTML viewer
         self.log_message.emit("Generating HTML viewer...", "info")
-        self._generate_html_viewer(output_dir, style_json, layers)
+        self._generate_html_viewer(output_dir, style_json, layers, bundle_offline=bundle_offline)
         self.progress.emit(90)
-
-        # Copy MapLibre assets
-        self._copy_maplibre_assets(output_dir)
 
         # Write README and serve script
         self._write_readme(output_dir)
@@ -1096,19 +1108,20 @@ class MapSplatExporter(QObject):
         return basemap
 
 
-    def _generate_html_viewer(self, output_dir, style_json, layers):
+    def _generate_html_viewer(self, output_dir, style_json, layers, bundle_offline=False):
         """Generate the HTML viewer file.
 
         :param output_dir: Output directory
         :param style_json: Style JSON dictionary
         :param layers: Dictionary of layers
+        :param bundle_offline: If True, reference local lib/ assets instead of CDN
         """
         # Calculate initial bounds from layers
         bounds = self._calculate_bounds(layers["vector"])
 
         # If exporting style.json, reference it externally instead of embedding
         use_external_style = self.settings.get("export_style_json", False)
-        html_content = self._get_html_template(style_json, bounds, use_external_style)
+        html_content = self._get_html_template(style_json, bounds, use_external_style, bundle_offline)
         html_path = os.path.join(output_dir, "index.html")
 
         with open(html_path, "w", encoding="utf-8") as f:
@@ -1153,28 +1166,48 @@ class MapSplatExporter(QObject):
 
         return [-180, -85, 180, 85]
 
-    def _get_html_template(self, style_json, bounds, use_external_style=False):
+    def _get_html_template(self, style_json, bounds, use_external_style=False, bundle_offline=False):
         """Get the HTML template.
 
         :param style_json: Style JSON dictionary
         :param bounds: [west, south, east, north]
         :param use_external_style: If True, reference ./style.json instead of embedding
+        :param bundle_offline: If True, reference local lib/ assets instead of CDN
         :returns: HTML string
         """
-        return generate_html_viewer(self.settings, style_json, bounds, use_external_style)
+        return generate_html_viewer(self.settings, style_json, bounds, use_external_style, bundle_offline)
 
     def _copy_maplibre_assets(self, output_dir):
-        """Copy MapLibre JS assets to output directory.
+        """Download MapLibre JS/CSS assets to lib/ for offline use if requested.
 
-        :param output_dir: Output directory
+        :param output_dir: Output directory containing lib/
+        :returns: True if assets were downloaded successfully, False if CDN should be used.
         """
+        if not self.settings.get("bundle_offline", False):
+            self.log_message.emit("  Using CDN for MapLibre assets", "info")
+            return False
+
+        assets = [
+            ("https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css", "maplibre-gl.css"),
+            ("https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js", "maplibre-gl.js"),
+            ("https://unpkg.com/pmtiles@3.2.0/dist/pmtiles.js", "pmtiles.js"),
+        ]
+
         lib_dir = os.path.join(output_dir, "lib")
-
-        # Using CDN for now - assets downloaded at runtime by browser
-        self.log_message.emit("  Using CDN for MapLibre assets", "info")
-
-        # TODO: Optionally download and bundle for offline use
-        # See TODO.md for planned offline bundling feature
+        try:
+            import urllib.request
+            for url, filename in assets:
+                dest = os.path.join(lib_dir, filename)
+                self.log_message.emit(f"  Downloading {filename}...", "info")
+                urllib.request.urlretrieve(url, dest)
+            self.log_message.emit("  MapLibre assets bundled for offline use", "success")
+            return True
+        except Exception as e:
+            self.log_message.emit(
+                f"  Warning: could not download MapLibre assets ({e}); falling back to CDN",
+                "warning",
+            )
+            return False
 
     def _write_readme(self, output_dir):
         """Write README file with deployment instructions.

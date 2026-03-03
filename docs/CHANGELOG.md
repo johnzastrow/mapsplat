@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.6 — 2026-03-03
+
+### Added
+- **Offline asset bundling** — new "Offline" tab in the dockwidget with a "Bundle JS/CSS for offline viewing" checkbox. When checked, `maplibre-gl.js`, `maplibre-gl.css`, and `pmtiles.js` are downloaded from unpkg.com at export time and saved to `lib/`. The generated `index.html` references these local files so the viewer works without an internet connection. If the download fails, the export continues with CDN links and a warning is logged.
+
 ## v0.6.5 — 2026-03-02
 
 ### Added

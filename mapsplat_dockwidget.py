@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.5"
+__version__ = "0.6.6"
 
 import os
 
@@ -373,9 +373,36 @@ class MapSplatDockWidget(QDockWidget):
         self.txt_log.setStyleSheet("font-family: monospace; font-size: 11px;")
         log_layout.addWidget(self.txt_log)
 
+        # --- Offline tab ---
+        offline_tab = QWidget()
+        offline_layout = QVBoxLayout(offline_tab)
+        offline_layout.setContentsMargins(8, 8, 8, 8)
+        offline_layout.setSpacing(6)
+
+        offline_group = QGroupBox("Offline Asset Bundling")
+        offline_group_layout = QVBoxLayout(offline_group)
+
+        self.chk_bundle_offline = QCheckBox("Bundle JS/CSS for offline viewing")
+        self.chk_bundle_offline.setChecked(False)
+        offline_group_layout.addWidget(self.chk_bundle_offline)
+
+        offline_note = QLabel(
+            "When checked, MapLibre GL JS, its CSS, and PMTiles JS are downloaded "
+            "from unpkg.com at export time and saved to lib/. The viewer then works "
+            "without an internet connection.\n\n"
+            "If the download fails, the export continues using CDN links instead."
+        )
+        offline_note.setWordWrap(True)
+        offline_note.setStyleSheet("color: gray; font-style: italic;")
+        offline_group_layout.addWidget(offline_note)
+
+        offline_layout.addWidget(offline_group)
+        offline_layout.addStretch()
+
         # Register tabs
         self.tabs.addTab(export_tab, "Export")
         self.tabs.addTab(viewer_tab, "Viewer")
+        self.tabs.addTab(offline_tab, "Offline")
         self.tabs.addTab(log_tab, "Log")
 
         # Store imported style path
@@ -628,6 +655,7 @@ class MapSplatDockWidget(QDockWidget):
             "viewer_zoom_display": self.chk_viewer_zoom_display.isChecked(),
             "viewer_reset_view": self.chk_viewer_reset_view.isChecked(),
             "viewer_north_reset": self.chk_viewer_north_reset.isChecked(),
+            "bundle_offline": self.chk_bundle_offline.isChecked(),
         }
 
         # Show progress and cancel button
@@ -729,6 +757,7 @@ class MapSplatDockWidget(QDockWidget):
                 "style_only": self.chk_style_only.isChecked(),
                 "imported_style_path": self.imported_style_path or "",
                 "write_log": self.chk_save_log.isChecked(),
+                "bundle_offline": self.chk_bundle_offline.isChecked(),
             },
             "basemap": {
                 "enabled": self.basemap_group.isChecked(),
@@ -831,6 +860,10 @@ class MapSplatDockWidget(QDockWidget):
 
         if "write_log" in export:
             self.chk_save_log.setChecked(bool(export["write_log"]))
+            applied += 1
+
+        if "bundle_offline" in export:
+            self.chk_bundle_offline.setChecked(bool(export["bundle_offline"]))
             applied += 1
 
         # --- [basemap] section ---

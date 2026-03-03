@@ -5,7 +5,7 @@ Pure-Python TOML-like config file reader/writer. No external dependencies.
 Supports human-editable config files with comments.
 """
 
-__version__ = "0.6.5"
+__version__ = "0.6.6"
 
 import os
 
@@ -21,6 +21,7 @@ _COMMENTS = {
         "style_only": "Skip data export — regenerate HTML/style only",
         "imported_style_path": "Path to an external style.json to merge (leave blank to skip)",
         "write_log": "Write export log to export.log in the output folder",
+        "bundle_offline": "Download MapLibre GL JS/CSS and PMTiles JS at export time for offline viewing",
     },
     "basemap": {
         "enabled": "Enable basemap overlay mode",
@@ -51,6 +52,7 @@ _SECTION_KEYS = {
         "style_only",
         "imported_style_path",
         "write_log",
+        "bundle_offline",
     ],
     "basemap": [
         "enabled",

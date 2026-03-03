@@ -18,12 +18,9 @@
 
 ### Critical
 
-- [ ] 🔴 **Bundle MapLibre GL JS assets for offline use**
-  - Currently using CDN — viewer breaks without internet
-  - Download at export time: `maplibre-gl.js`, `maplibre-gl.css`, `pmtiles.js`
-  - Save to `lib/` directory, update HTML to use local paths
-  - Add "Bundle for offline use" checkbox to Export tab
-  - File: `exporter.py:_copy_maplibre_assets()`, `mapsplat_dockwidget.py`
+- [x] 🔴 **Bundle MapLibre GL JS assets for offline use** ✅ v0.6.6
+  - New Offline tab; downloads maplibre-gl.js/css and pmtiles.js at export time
+  - Falls back to CDN with warning if download fails
 
 ### High
 
