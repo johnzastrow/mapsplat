@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.6"
+__version__ = "0.6.7"
 
 import os
 from qgis.core import (
@@ -139,8 +139,10 @@ class StyleConverter:
         if has_sprites:
             style["sprite"] = "./sprites"
 
-        # Convert each layer
-        for layer in self.layers:
+        # Convert each layer.  QGIS panel order is top-to-bottom (top layer renders on top),
+        # but MapLibre's style["layers"] array is bottom-to-top (first entry = bottom).
+        # Reversing self.layers maps QGIS panel order correctly to MapLibre rendering order.
+        for layer in reversed(self.layers):
             layer_styles = self._convert_layer(layer)
             style["layers"].extend(layer_styles)
 
@@ -514,102 +516,166 @@ class StyleConverter:
 
 
     def _convert_categorized(self, layer, renderer, source_layer, geom_type, source_name):
-        """Convert categorized symbol renderer."""
-        layers = []
+        """Convert categorized symbol renderer.
+
+        Handles:
+        - Regular categories (value is not None and not "")
+        - Null category (value is None): mapped to "__null__" sentinel via coalesce
+        - Catch-all category (value == ""): used as the match expression fallback
+        - Unmatched features are hidden (opacity 0) when no catch-all is defined
+        """
         attr_name = renderer.classAttribute()
-        categories = renderer.categories()
+
+        # Separate categories by role; skip inactive or empty symbols
+        null_cat = None
+        catchall_cat = None
+        regular_cats = []
+        for cat in renderer.categories():
+            if not cat.renderState():
+                continue
+            symbol = cat.symbol()
+            if not symbol or symbol.symbolLayerCount() == 0:
+                continue
+            value = cat.value()
+            if value is None:
+                null_cat = cat
+            elif value == "":
+                catchall_cat = cat
+            else:
+                regular_cats.append(cat)
+
+        if not regular_cats and null_cat is None and catchall_cat is None:
+            return self._create_default_style(layer, source_layer, geom_type, source_name)
+
+        # When a null category exists, coerce null attribute values to a sentinel string so
+        # MapLibre's match expression can handle them (match does not support null literals).
+        if null_cat is not None:
+            match_input = ["coalesce", ["get", attr_name], "__null__"]
+        else:
+            match_input = ["get", attr_name]
+
+        def _build_match(pairs, fallback):
+            """Return a match expression, or the bare fallback if no label-output pairs exist."""
+            if not pairs:
+                return fallback
+            expr = ["match", match_input]
+            for label, val in pairs:
+                expr.extend([label, val])
+            expr.append(fallback)
+            return expr
+
+        layers = []
 
         if geom_type == 2:  # Polygon
-            fill_colors = ["match", ["get", attr_name]]
-            outline_colors = ["match", ["get", attr_name]]
-            opacities = ["match", ["get", attr_name]]
-
-            for cat in categories:
-                value = cat.value()
-                symbol = cat.symbol()
-                if value is not None and value != "" and symbol and symbol.symbolLayerCount() > 0:
-                    sym_layer = symbol.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleFillSymbolLayer):
-                        fill_colors.extend([value, sym_layer.fillColor().name()])
-                        outline_colors.extend([value, sym_layer.strokeColor().name()])
-                        opacities.extend([value, sym_layer.fillColor().alphaF()])
-
-            fill_colors.append(self.DEFAULT_FILL_COLOR)
-            outline_colors.append(self.DEFAULT_LINE_COLOR)
-            opacities.append(0.7)
-
+            fill_pairs, outline_pairs, opacity_pairs = [], [], []
+            for cat in regular_cats:
+                sl = cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer):
+                    fill_pairs.append((cat.value(), sl.fillColor().name()))
+                    outline_pairs.append((cat.value(), sl.strokeColor().name()))
+                    opacity_pairs.append((cat.value(), sl.fillColor().alphaF()))
+            if null_cat is not None:
+                sl = null_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer):
+                    fill_pairs.append(("__null__", sl.fillColor().name()))
+                    outline_pairs.append(("__null__", sl.strokeColor().name()))
+                    opacity_pairs.append(("__null__", sl.fillColor().alphaF()))
+            if catchall_cat is not None:
+                sl = catchall_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleFillSymbolLayer):
+                    fill_fb = sl.fillColor().name()
+                    outline_fb = sl.strokeColor().name()
+                    opacity_fb = sl.fillColor().alphaF()
+                else:
+                    fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
+            else:
+                fill_fb, outline_fb, opacity_fb = self.DEFAULT_FILL_COLOR, self.DEFAULT_LINE_COLOR, 0.0
             layers.append({
                 "id": source_layer,
                 "type": "fill",
                 "source": source_name,
                 "source-layer": source_layer,
                 "paint": {
-                    "fill-color": fill_colors,
-                    "fill-opacity": opacities,
-                    "fill-outline-color": outline_colors
+                    "fill-color": _build_match(fill_pairs, fill_fb),
+                    "fill-opacity": _build_match(opacity_pairs, opacity_fb),
+                    "fill-outline-color": _build_match(outline_pairs, outline_fb),
                 }
             })
 
         elif geom_type == 1:  # Line
-            line_colors = ["match", ["get", attr_name]]
-            line_widths = ["match", ["get", attr_name]]
-            opacities = ["match", ["get", attr_name]]
-
-            for cat in categories:
-                value = cat.value()
-                symbol = cat.symbol()
-                if value is not None and value != "" and symbol and symbol.symbolLayerCount() > 0:
-                    sym_layer = symbol.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleLineSymbolLayer):
-                        line_colors.extend([value, sym_layer.color().name()])
-                        line_widths.extend([value, self._convert_size(sym_layer.width(), sym_layer.widthUnit())])
-                        opacities.extend([value, sym_layer.color().alphaF()])
-
-            line_colors.append(self.DEFAULT_LINE_COLOR)
-            line_widths.append(2)
-            opacities.append(1.0)
-
+            color_pairs, width_pairs, opacity_pairs = [], [], []
+            for cat in regular_cats:
+                sl = cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleLineSymbolLayer):
+                    color_pairs.append((cat.value(), sl.color().name()))
+                    width_pairs.append((cat.value(), self._convert_size(sl.width(), sl.widthUnit())))
+                    opacity_pairs.append((cat.value(), sl.color().alphaF()))
+            if null_cat is not None:
+                sl = null_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleLineSymbolLayer):
+                    color_pairs.append(("__null__", sl.color().name()))
+                    width_pairs.append(("__null__", self._convert_size(sl.width(), sl.widthUnit())))
+                    opacity_pairs.append(("__null__", sl.color().alphaF()))
+            if catchall_cat is not None:
+                sl = catchall_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleLineSymbolLayer):
+                    color_fb = sl.color().name()
+                    width_fb = self._convert_size(sl.width(), sl.widthUnit())
+                    opacity_fb = sl.color().alphaF()
+                else:
+                    color_fb, width_fb, opacity_fb = self.DEFAULT_LINE_COLOR, 2, 0.0
+            else:
+                color_fb, width_fb, opacity_fb = self.DEFAULT_LINE_COLOR, 2, 0.0
             layers.append({
                 "id": source_layer,
                 "type": "line",
                 "source": source_name,
                 "source-layer": source_layer,
                 "paint": {
-                    "line-color": line_colors,
-                    "line-width": line_widths,
-                    "line-opacity": opacities,
+                    "line-color": _build_match(color_pairs, color_fb),
+                    "line-width": _build_match(width_pairs, width_fb),
+                    "line-opacity": _build_match(opacity_pairs, opacity_fb),
                 }
             })
 
         elif geom_type == 0:  # Point
-            circle_colors = ["match", ["get", attr_name]]
-            circle_radii = ["match", ["get", attr_name]]
-            stroke_colors = ["match", ["get", attr_name]]
-
-            for cat in categories:
-                value = cat.value()
-                symbol = cat.symbol()
-                if value is not None and value != "" and symbol and symbol.symbolLayerCount() > 0:
-                    sym_layer = symbol.symbolLayer(0)
-                    if isinstance(sym_layer, QgsSimpleMarkerSymbolLayer):
-                        circle_colors.extend([value, sym_layer.fillColor().name()])
-                        circle_radii.extend([value, self._convert_size(sym_layer.size(), sym_layer.sizeUnit()) / 2])
-                        stroke_colors.extend([value, sym_layer.strokeColor().name()])
-
-            circle_colors.append(self.DEFAULT_POINT_COLOR)
-            circle_radii.append(6)
-            stroke_colors.append("#ffffff")
-
+            color_pairs, radius_pairs, stroke_pairs, opacity_pairs = [], [], [], []
+            for cat in regular_cats:
+                sl = cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
+                    color_pairs.append((cat.value(), sl.fillColor().name()))
+                    radius_pairs.append((cat.value(), self._convert_size(sl.size(), sl.sizeUnit()) / 2))
+                    stroke_pairs.append((cat.value(), sl.strokeColor().name()))
+                    opacity_pairs.append((cat.value(), sl.fillColor().alphaF()))
+            if null_cat is not None:
+                sl = null_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
+                    color_pairs.append(("__null__", sl.fillColor().name()))
+                    radius_pairs.append(("__null__", self._convert_size(sl.size(), sl.sizeUnit()) / 2))
+                    stroke_pairs.append(("__null__", sl.strokeColor().name()))
+                    opacity_pairs.append(("__null__", sl.fillColor().alphaF()))
+            if catchall_cat is not None:
+                sl = catchall_cat.symbol().symbolLayer(0)
+                if isinstance(sl, QgsSimpleMarkerSymbolLayer):
+                    color_fb = sl.fillColor().name()
+                    radius_fb = self._convert_size(sl.size(), sl.sizeUnit()) / 2
+                    stroke_fb = sl.strokeColor().name()
+                    opacity_fb = sl.fillColor().alphaF()
+                else:
+                    color_fb, radius_fb, stroke_fb, opacity_fb = self.DEFAULT_POINT_COLOR, 6, "#ffffff", 0.0
+            else:
+                color_fb, radius_fb, stroke_fb, opacity_fb = self.DEFAULT_POINT_COLOR, 6, "#ffffff", 0.0
             layers.append({
                 "id": source_layer,
                 "type": "circle",
                 "source": source_name,
                 "source-layer": source_layer,
                 "paint": {
-                    "circle-color": circle_colors,
-                    "circle-radius": circle_radii,
-                    "circle-stroke-color": stroke_colors,
-                    "circle-stroke-width": 1
+                    "circle-color": _build_match(color_pairs, color_fb),
+                    "circle-radius": _build_match(radius_pairs, radius_fb),
+                    "circle-stroke-color": _build_match(stroke_pairs, stroke_fb),
+                    "circle-stroke-width": 1,
+                    "circle-opacity": _build_match(opacity_pairs, opacity_fb),
                 }
             })
 

@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.6"
+__version__ = "0.6.7"
 
 import os
 
@@ -419,7 +419,8 @@ class MapSplatDockWidget(QDockWidget):
         self.layer_list.clear()
 
         project = QgsProject.instance()
-        for layer in project.mapLayers().values():
+        # Use layerTreeRoot().layerOrder() so the list reflects QGIS panel order (top → bottom)
+        for layer in project.layerTreeRoot().layerOrder():
             item = QListWidgetItem()
 
             # Determine layer type icon/prefix

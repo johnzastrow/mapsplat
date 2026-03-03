@@ -1,6 +1,6 @@
 # MapSplat TODO List
 
-**Version:** 0.6.5
+**Version:** 0.6.7
 **Last Updated:** 2026-03-03
 
 ---
@@ -24,19 +24,18 @@
 
 ### High
 
-- [ ] 🟠 **Handle null category values in categorized renderer**
-  - Categorized renderer can have a NULL category
-  - MapLibre `match` expressions handle null differently than QGIS
+- [x] 🟠 **Handle null category values in categorized renderer** ✅ v0.6.7
+  - Null values coerced to `"__null__"` sentinel via `coalesce`; matched against null category style
   - File: `style_converter.py:_convert_categorized()`
 
-- [ ] 🟠 **Handle "all other values" catch-all category**
-  - QGIS has a catch-all category for unmatched values
-  - Map to the default/fallback value in MapLibre `match` expression
+- [x] 🟠 **Handle "all other values" catch-all category** ✅ v0.6.7
+  - Catch-all category (empty-string value) used as `match` expression fallback
+  - Unmatched features hidden (opacity 0) when no catch-all defined
   - File: `style_converter.py:_convert_categorized()`
 
-- [ ] 🟠 **Layer ordering control**
-  - Currently layer order in output may not match QGIS layer panel order
-  - Respect QGIS layer order in style.json layer list
+- [x] 🟠 **Layer ordering control** ✅ v0.6.7
+  - Layer panel order (top → bottom) now respected in style.json and layer list widget
+  - `layerTreeRoot().layerOrder()` used in dockwidget; `reversed(self.layers)` in converter
   - File: `mapsplat_dockwidget.py`, `style_converter.py`
 
 ### Medium
@@ -136,6 +135,9 @@
 ### Symbology
 - [x] 🟠 Single Symbol renderer (fill, line, marker) — v0.1.0
 - [x] 🟠 Categorized renderer — v0.1.0
+- [x] 🟠 Categorized renderer null category handling — v0.6.7
+- [x] 🟠 Categorized renderer catch-all category handling — v0.6.7
+- [x] 🟠 Layer order matches QGIS panel order — v0.6.7
 - [x] 🟠 Graduated renderer — v0.1.0
 - [x] 🟠 Opacity extraction (fill, line, circle, stroke) — v0.2.0
 - [x] 🟠 Line width unit conversion (mm → px) — v0.2.0

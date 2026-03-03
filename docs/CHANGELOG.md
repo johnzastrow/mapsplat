@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.7 — 2026-03-03
+
+### Fixed
+- **Null category values in categorized renderer** — categories whose value is `None` (the QGIS "NULL" category) are now rendered correctly. The MapLibre `match` expression wraps the attribute lookup with `coalesce(get(attr), "__null__")` so null feature values are matched against the null category's style instead of falling through to the default.
+- **Catch-all category in categorized renderer** — the "all other values" category (empty-string value in QGIS) is now used as the `match` expression fallback. Features not matching any named category use the catch-all style. When no catch-all is defined, unmatched features are hidden (opacity 0) rather than receiving the hardcoded default color.
+- **Layer rendering order** — the QGIS layer panel order (top layer renders on top) is now respected in the exported `style.json`. Previously, layers were appended in arbitrary order. The fix reverses `self.layers` when writing `style.json` entries and uses `layerTreeRoot().layerOrder()` instead of `mapLayers().values()` when populating the layer list widget.
+
 ## v0.6.6 — 2026-03-03
 
 ### Added
