@@ -1,6 +1,6 @@
 # MapSplat TODO List
 
-**Version:** 0.6.10
+**Version:** 0.6.12
 **Last Updated:** 2026-03-03
 
 ---
@@ -65,6 +65,21 @@
 - [x] 🟡 **Robust style.json import** ✅ v0.6.8
   - Validates JSON parse, top-level object, version:8, and layers key
   - Malformed or wrong-version files rejected with descriptive dialog
+
+- [ ] 🟡 **Map window pixel dimensions for embedding**
+  - Add width × height spinboxes (or a preset dropdown) on the Viewer tab
+  - Viewer HTML respects the chosen dimensions so the map fits in an existing page without manual CSS edits
+  - Pair with the copy-paste embed section so the snippet is ready to drop in
+  - File: `mapsplat_dockwidget.py`, `exporter.py:_get_html_template()`
+
+- [ ] 🟠 **Reduce vertical height of the Export tab**
+  - Export Options group is too tall on smaller screens, pushing Save/Load Config and Export buttons below the visible area
+  - Options to investigate (pick best or combine):
+    - Collapse the Export Options group into a `QGroupBox` with a toggle arrow (collapsed by default)
+    - Convert multi-row checkbox stacks to a two-column grid layout
+    - Move less-used options (Style-only, Log to file) into a collapsible "Advanced" section
+    - Add a `QScrollArea` around the Export tab contents as a safety net for any screen size
+  - File: `mapsplat_dockwidget.py`, possibly `mapsplat_dockwidget.ui`
 
 - [ ] 🟡 **Legend generation**
   - Generate a proper legend panel from `style.json` layer colors/symbols
