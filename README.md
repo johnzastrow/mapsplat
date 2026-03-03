@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.4-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.6.5-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
@@ -344,7 +344,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/var/www/myproject
-ExecStart=/usr/bin/python3 /var/www/myproject/serve.py
+ExecStart=/usr/bin/python3 /var/www/myproject/serve.py --no-browser
 Restart=on-failure
 RestartSec=5
 
@@ -368,11 +368,10 @@ Stock Caddy does **not** support HTTP Range requests for static files out of the
 
 **1. Run `serve.py` as a systemd service** (same as the section above, but on a non-public port):
 
-If you need a port other than 8000 (e.g. you run multiple maps on the same host), open `serve.py` and change the `PORT` line near the top:
+`serve.py` accepts two flags useful for server deployments:
 
-```python
-PORT = 8001   # change from 8000 to any free port
-```
+- `--port PORT` — listen on a specific port (default: `8000`). Use this when running multiple maps on the same host.
+- `--no-browser` — don't open a browser tab on startup (essential for headless servers).
 
 Create `/etc/systemd/system/mapsplat-myproject.service`:
 ```ini
@@ -384,7 +383,7 @@ After=network.target
 Type=simple
 User=www-data
 WorkingDirectory=/var/www/myproject
-ExecStart=/usr/bin/python3 /var/www/myproject/serve.py
+ExecStart=/usr/bin/python3 /var/www/myproject/serve.py --port 8001 --no-browser
 Restart=on-failure
 RestartSec=5
 
@@ -605,8 +604,8 @@ mapsplat/
 Bump `__version__` in all seven `.py` modules and `version=` in `metadata.txt` together. Update `docs/CHANGELOG.md`. Releases are created by pushing a version tag — the CI workflow builds `mapsplat.zip` and publishes the GitHub Release automatically:
 
 ```bash
-git tag v0.6.4
-git push origin v0.6.4
+git tag v0.6.5
+git push origin v0.6.5
 ```
 
 ---

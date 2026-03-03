@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.5 — 2026-03-02
+
+### Added
+- **`serve.py --port` and `--no-browser` flags** — `serve.py` now accepts `--port PORT` to listen on a non-default port, and `--no-browser` to suppress the automatic browser launch (useful for headless server deployments and Caddy/Nginx reverse-proxy setups).
+
 ## v0.6.4 — 2026-03-02
 
 ### Added

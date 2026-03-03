@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.6.4"
+__version__ = "0.6.5"
 
 import os
 import sys
@@ -1245,12 +1245,14 @@ Place these files in the `lib/` folder.
 HTTP server with Range request support for PMTiles.
 
 Usage:
-    python serve.py
+    python serve.py                  # start on port 8000, open browser
+    python serve.py --port 8001      # use a different port
+    python serve.py --no-browser     # don't open the browser (server mode)
 
-Then open http://localhost:8000 in your browser.
 Press Ctrl+C to stop the server (or close this window).
 """
 
+import argparse
 import http.server
 import os
 import signal
@@ -1258,7 +1260,12 @@ import sys
 import threading
 import webbrowser
 
-PORT = 8000
+parser = argparse.ArgumentParser(description="MapSplat local map server")
+parser.add_argument("--port", type=int, default=8000, help="Port to listen on (default: 8000)")
+parser.add_argument("--no-browser", action="store_true", help="Do not open the browser on startup")
+args = parser.parse_args()
+
+PORT = args.port
 server_running = True
 
 class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -1382,7 +1389,8 @@ if __name__ == "__main__":
     server_thread.daemon = True
     server_thread.start()
 
-    webbrowser.open(f"http://localhost:{PORT}")
+    if not args.no_browser:
+        webbrowser.open(f"http://localhost:{PORT}")
 
     try:
         # Keep main thread alive with a simple loop

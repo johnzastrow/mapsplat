@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=3.40
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.4
+version=0.6.5
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,8 @@ repository=https://github.com/johnzastrow/mapsplat
 hasProcessingProvider=no
 
 changelog=
+    0.6.5 - serve.py --port and --no-browser flags
+    - serve.py now accepts --port PORT and --no-browser for headless server deployments
     0.6.4 - Caddy reverse-proxy instructions
     - README: document how to run serve.py behind stock Caddy for small deployments
     0.6.3 - Simplify output path
