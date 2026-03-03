@@ -121,7 +121,7 @@ This project is based on the work by the folks at Protomaps. They host builds of
 
 ### From ZIP (Recommended for most users)
 
-1. Download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mqs/releases)
+1. Download the latest `mapsplat.zip` from [Releases](https://github.com/johnzastrow/mapsplat/releases)
 2. In QGIS: **Plugins → Manage and Install Plugins → Install from ZIP**
 3. Select the downloaded ZIP and click **Install Plugin**
 4. Enable **MapSplat** in the installed plugins list
@@ -130,22 +130,22 @@ This project is based on the work by the folks at Protomaps. They host builds of
 
 **Linux / macOS:**
 ```bash
-git clone https://github.com/johnzastrow/mqs.git
-cd mqs/Plugins/mapsplat
+git clone https://github.com/johnzastrow/mapsplat.git
+cd mapsplat
 make deploy
 ```
 
 **Windows (Command Prompt):**
 ```cmd
-git clone https://github.com/johnzastrow/mqs.git
-cd mqs\Plugins\mapsplat
+git clone https://github.com/johnzastrow/mapsplat.git
+cd mapsplat
 deploy.bat
 ```
 
 **Windows (PowerShell):**
 ```powershell
-git clone https://github.com/johnzastrow/mqs.git
-cd mqs\Plugins\mapsplat
+git clone https://github.com/johnzastrow/mapsplat.git
+cd mapsplat
 .\deploy.ps1
 ```
 
@@ -586,7 +586,7 @@ MIT — see [LICENSE](../../LICENSE) for details.
 
 ## Links
 
-- **Repository**: https://github.com/johnzastrow/mqs
-- **Issues**: https://github.com/johnzastrow/mqs/issues
-- **Releases**: https://github.com/johnzastrow/mqs/releases
+- **Repository**: https://github.com/johnzastrow/mapsplat
+- **Issues**: https://github.com/johnzastrow/mapsplat/issues
+- **Releases**: https://github.com/johnzastrow/mapsplat/releases
 - **Documentation**: [docs/](docs/)
