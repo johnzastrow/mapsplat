@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.7"
+__version__ = "0.6.8"
 
 import os
 
@@ -20,7 +20,7 @@ except ImportError:
     import config_manager  # test environment (no package)
 
 from qgis.PyQt import uic
-from qgis.PyQt.QtCore import pyqtSignal, Qt
+from qgis.PyQt.QtCore import pyqtSignal, Qt, QSettings
 from qgis.PyQt.QtWidgets import (
     QDockWidget,
     QVBoxLayout,
@@ -120,6 +120,7 @@ class MapSplatDockWidget(QDockWidget):
 
         self.layer_list = QListWidget()
         self.layer_list.setSelectionMode(_MultiSelection)
+        self.layer_list.itemSelectionChanged.connect(self._update_layer_count)
         layer_layout.addWidget(self.layer_list)
 
         # Select all / none buttons
@@ -131,6 +132,11 @@ class MapSplatDockWidget(QDockWidget):
         btn_layout.addWidget(self.btn_select_all)
         btn_layout.addWidget(self.btn_select_none)
         layer_layout.addLayout(btn_layout)
+
+        # Layer count summary label
+        self.lbl_layer_count = QLabel("0 of 0 layers selected")
+        self.lbl_layer_count.setStyleSheet("color: gray; font-style: italic;")
+        layer_layout.addWidget(self.lbl_layer_count)
 
         export_layout.addWidget(layer_group)
 
@@ -254,6 +260,7 @@ class MapSplatDockWidget(QDockWidget):
         folder_layout.addWidget(QLabel("Output folder:"))
         self.txt_output_folder = QLineEdit()
         self.txt_output_folder.setPlaceholderText("Select output folder...")
+        self.txt_output_folder.textChanged.connect(self._save_last_output_folder)
         self.btn_browse = QPushButton("Browse...")
         self.btn_browse.clicked.connect(self._browse_output_folder)
         folder_layout.addWidget(self.txt_output_folder, 1)
@@ -414,6 +421,12 @@ class MapSplatDockWidget(QDockWidget):
         # Remember last config directory for file dialogs
         self._last_config_dir = ""
 
+        # Restore last output folder from QSettings
+        settings = QSettings("MapSplat", "MapSplat")
+        last_folder = settings.value("last_output_folder", "")
+        if last_folder and os.path.isdir(last_folder):
+            self.txt_output_folder.setText(last_folder)
+
     def refresh_layer_list(self):
         """Refresh the layer list from the current project."""
         self.layer_list.clear()
@@ -451,6 +464,8 @@ class MapSplatDockWidget(QDockWidget):
             clean_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in project_name)
             self.txt_project_name.setText(clean_name)
 
+        self._update_layer_count()
+
     def _select_all_layers(self):
         """Select all layers in the list."""
         for i in range(self.layer_list.count()):
@@ -461,6 +476,18 @@ class MapSplatDockWidget(QDockWidget):
     def _select_no_layers(self):
         """Deselect all layers."""
         self.layer_list.clearSelection()
+
+    def _update_layer_count(self):
+        """Update the 'X of Y layers selected' label."""
+        total = self.layer_list.count()
+        selected = len(self.layer_list.selectedItems())
+        self.lbl_layer_count.setText(f"{selected} of {total} layers selected")
+
+    def _save_last_output_folder(self, text):
+        """Persist the current output folder to QSettings."""
+        folder = text.strip()
+        if folder and os.path.isdir(folder):
+            QSettings("MapSplat", "MapSplat").setValue("last_output_folder", folder)
 
     def _browse_output_folder(self):
         """Open folder browser dialog."""
@@ -473,19 +500,52 @@ class MapSplatDockWidget(QDockWidget):
             self.txt_output_folder.setText(folder)
 
     def _import_style(self):
-        """Import an existing style.json file."""
+        """Import an existing style.json file, with structural validation."""
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Import MapLibre Style JSON",
             "",
             "JSON Files (*.json);;All Files (*)"
         )
-        if file_path:
-            self.imported_style_path = file_path
-            basename = os.path.basename(file_path)
-            self.lbl_imported_style.setText(f"Imported: {basename}")
-            self.lbl_imported_style.setStyleSheet("color: green;")
-            self._log(f"Imported style: {file_path}")
+        if not file_path:
+            return
+
+        # Parse and validate before accepting
+        import json as _json
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                style_data = _json.load(f)
+        except OSError as e:
+            QMessageBox.warning(self, "Cannot Read File",
+                                f"Could not open the file:\n{e}")
+            return
+        except _json.JSONDecodeError as e:
+            QMessageBox.warning(self, "Invalid JSON",
+                                f"The file is not valid JSON:\n{e}")
+            return
+
+        if not isinstance(style_data, dict):
+            QMessageBox.warning(self, "Invalid Style",
+                                "Expected a JSON object at the top level.")
+            return
+
+        if style_data.get("version") != 8:
+            got = style_data.get("version", "<missing>")
+            QMessageBox.warning(self, "Invalid Style",
+                                f"This does not look like a MapLibre Style JSON v8 file.\n"
+                                f"Expected \"version\": 8, found: {got!r}")
+            return
+
+        if "layers" not in style_data:
+            QMessageBox.warning(self, "Invalid Style",
+                                "The style file has no \"layers\" key.")
+            return
+
+        self.imported_style_path = file_path
+        basename = os.path.basename(file_path)
+        self.lbl_imported_style.setText(f"Imported: {basename}")
+        self.lbl_imported_style.setStyleSheet("color: green;")
+        self._log(f"Imported style: {file_path}")
 
     def _on_basemap_source_type_changed(self):
         """Show/hide browse button based on source type selection."""
@@ -569,6 +629,13 @@ class MapSplatDockWidget(QDockWidget):
 
         if not os.path.isdir(output_folder):
             QMessageBox.warning(self, "Invalid Folder", "The output folder does not exist.")
+            return False
+
+        if not os.access(output_folder, os.W_OK):
+            QMessageBox.warning(self, "Folder Not Writable",
+                                "Cannot write to the output folder.\n"
+                                "Check that you have write permissions for:\n"
+                                f"{output_folder}")
             return False
 
         # Check project name

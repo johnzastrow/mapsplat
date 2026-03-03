@@ -328,7 +328,7 @@ python serve.py
 # Opens http://localhost:8000 automatically
 ```
 
-`serve.py` handles Range requests, CORS headers, and CORS preflight — everything needed for PMTiles to work locally.
+`serve.py` handles Range requests, CORS headers, and CORS preflight — everything needed for PMTiles to work locally. By default it binds to `127.0.0.1` (loopback only). To test from another device on the same network, use `--host 0.0.0.0`.
 
 ### Other options
 
@@ -366,14 +366,26 @@ aws s3 sync <project_name>_webmap/ s3://my-bucket/webmap/ --acl public-read
 
 ### Linux VPS with `serve.py` (low traffic)
 
-`serve.py` can run as a persistent background service. Suitable for personal or small-team use.
+`serve.py` can run as a persistent background service. Suitable for personal or small-team use. This setup serves over plain HTTP; add Nginx or Caddy in front if you need HTTPS.
 
-**Copy files to the server:**
+**1. Create a dedicated service user:**
 ```bash
-scp -r <project_name>_webmap/ user@yourserver:/var/www/myproject/
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin mapsplat
 ```
 
-**Create `/etc/systemd/system/mapsplat-myproject.service`:**
+**2. Copy and lock down files:**
+```bash
+sudo mkdir -p /var/www/myproject
+sudo cp -r <project_name>_webmap/. /var/www/myproject/
+sudo chown -R root:mapsplat /var/www/myproject
+sudo find /var/www/myproject -type f -exec chmod 640 {} +
+sudo find /var/www/myproject -type d -exec chmod 750 {} +
+```
+
+**3. Create `/etc/systemd/system/mapsplat-myproject.service`:**
+
+`serve.py` defaults to `127.0.0.1` (loopback only). For direct public access without a reverse proxy, pass `--host 0.0.0.0`:
+
 ```ini
 [Unit]
 Description=MapSplat Web Map — My Project
@@ -381,17 +393,24 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=mapsplat
 WorkingDirectory=/var/www/myproject
-ExecStart=/usr/bin/python3 /var/www/myproject/serve.py --no-browser
+ExecStart=/usr/bin/python3 /var/www/myproject/serve.py --host 0.0.0.0 --no-browser
 Restart=on-failure
 RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadOnlyPaths=/var/www/myproject
+ProtectHome=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target
 ```
 
-**Enable and start:**
+**4. Enable and start:**
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable mapsplat-myproject
@@ -399,20 +418,41 @@ sudo systemctl start mapsplat-myproject
 sudo systemctl status mapsplat-myproject
 ```
 
-> `serve.py` is single-threaded. For higher traffic, use Nginx (see below).
+> For higher traffic, use Nginx (see below).
 
 ### Linux VPS with Caddy as the server (production)
 
 Stock Caddy does **not** support HTTP Range requests for static files out of the box — Range request support requires a custom Caddy build with the [Caddy PMTiles module](https://docs.protomaps.com/deploy/server). If you cannot rebuild Caddy, the easiest approach is to run `serve.py` as a background service and let Caddy reverse-proxy to it. `serve.py` handles the Range requests; Caddy handles HTTPS termination and your existing routing.
 
-**1. Run `serve.py` as a systemd service** (same as the section above, but on a non-public port):
+**1. Create a dedicated service user and copy files** (same as the section above):
+```bash
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin mapsplat
+sudo mkdir -p /var/www/myproject
+sudo cp -r <project_name>_webmap/. /var/www/myproject/
+sudo chown -R root:mapsplat /var/www/myproject
+sudo find /var/www/myproject -type f -exec chmod 640 {} +
+sudo find /var/www/myproject -type d -exec chmod 750 {} +
+```
 
-`serve.py` accepts two flags useful for server deployments:
+**2. Block the serve.py port from the public internet:**
+
+`serve.py` defaults to binding `127.0.0.1` so external traffic can only reach it through Caddy. Add a firewall rule as belt-and-suspenders protection against misconfiguration:
+
+```bash
+sudo ufw deny 8001        # block serve.py port from outside
+sudo ufw allow 443
+sudo ufw allow 80
+sudo ufw enable
+```
+
+**3. Create `/etc/systemd/system/mapsplat-myproject.service`:**
+
+`serve.py` flags useful for server deployments:
 
 - `--port PORT` — listen on a specific port (default: `8000`). Use this when running multiple maps on the same host.
 - `--no-browser` — don't open a browser tab on startup (essential for headless servers).
+- `--host HOST` — address to bind to (default: `127.0.0.1`). No change needed for Caddy deployments — the default is already loopback-only.
 
-Create `/etc/systemd/system/mapsplat-myproject.service`:
 ```ini
 [Unit]
 Description=MapSplat Web Map — My Project
@@ -420,11 +460,18 @@ After=network.target
 
 [Service]
 Type=simple
-User=www-data
+User=mapsplat
 WorkingDirectory=/var/www/myproject
 ExecStart=/usr/bin/python3 /var/www/myproject/serve.py --port 8001 --no-browser
 Restart=on-failure
 RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadOnlyPaths=/var/www/myproject
+ProtectHome=yes
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6
 
 [Install]
 WantedBy=multi-user.target
@@ -436,11 +483,17 @@ sudo systemctl enable mapsplat-myproject
 sudo systemctl start mapsplat-myproject
 ```
 
-**2. Add a reverse proxy block to your `Caddyfile`:**
+**4. Add a reverse proxy block with security headers to your `Caddyfile`:**
 
 ```caddy
 your-domain.com {
-    reverse_proxy /myproject/* localhost:8000
+    reverse_proxy /myproject/* localhost:8001
+    header {
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
 }
 ```
 
@@ -448,11 +501,17 @@ Or if the entire site is just this map:
 
 ```caddy
 your-domain.com {
-    reverse_proxy localhost:8000
+    reverse_proxy localhost:8001
+    header {
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "SAMEORIGIN"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        -Server
+    }
 }
 ```
 
-Replace `8000` with whatever port you set in `serve.py`.
+Replace `8001` with whatever port you set in `serve.py`. CORS headers (`Access-Control-Allow-Origin: *`) are already set by `serve.py` and do not need to be added to Caddy.
 
 Caddy automatically provisions and renews a TLS certificate via Let's Encrypt. The Range requests pass through the reverse proxy transparently — `serve.py` handles them, Caddy just forwards.
 

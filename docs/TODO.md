@@ -1,6 +1,6 @@
 # MapSplat TODO List
 
-**Version:** 0.6.7
+**Version:** 0.6.8
 **Last Updated:** 2026-03-03
 
 ---
@@ -40,17 +40,14 @@
 
 ### Medium
 
-- [ ] 🟡 **Remember last output folder**
-  - Store in QSettings, restore on plugin open
-  - File: `mapsplat_dockwidget.py`
+- [x] 🟡 **Remember last output folder** ✅ v0.6.8
+  - Stored in QSettings, restored on plugin open
 
-- [ ] 🟡 **Add layer count to UI**
-  - Show "X of Y layers selected" summary, update on selection change
-  - File: `mapsplat_dockwidget.py`
+- [x] 🟡 **Add layer count to UI** ✅ v0.6.8
+  - "X of Y layers selected" label below layer list, updates on selection change
 
-- [ ] 🟡 **Validate output folder is writable**
-  - Check write permissions before starting export
-  - File: `mapsplat_dockwidget.py:_validate_export()`
+- [x] 🟡 **Validate output folder is writable** ✅ v0.6.8
+  - `os.access(folder, os.W_OK)` check with descriptive error dialog
 
 - [ ] 🟡 **Support graduated color ramps**
   - Extract colors from `QgsGraduatedSymbolRenderer`
@@ -66,10 +63,9 @@
   - Apply to MapLibre layer definition
   - File: `style_converter.py`
 
-- [ ] 🟡 **Robust style.json import**
-  - Validate imported JSON structure before merging
-  - Handle malformed files gracefully with a clear error
-  - File: `mapsplat_dockwidget.py:_import_style()`
+- [x] 🟡 **Robust style.json import** ✅ v0.6.8
+  - Validates JSON parse, top-level object, version:8, and layers key
+  - Malformed or wrong-version files rejected with descriptive dialog
 
 - [ ] 🟡 **Legend generation**
   - Generate a proper legend panel from `style.json` layer colors/symbols

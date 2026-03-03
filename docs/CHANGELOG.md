@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.8 — 2026-03-03
+
+### Added
+- **Layer count summary** — the layer list now shows "X of Y layers selected" below the Select All / Select None buttons, updating immediately on selection change and on project reload.
+- **Remember last output folder** — the output folder is saved to `QSettings` whenever it changes and restored automatically the next time the plugin opens.
+- **`serve.py --host` flag** — `--host ADDRESS` lets the server bind to a specific interface; defaults to `127.0.0.1` (loopback). Use `--host 0.0.0.0` for LAN or direct VPS access.
+- **serve.py: threaded HTTP server** — uses `ThreadingMixIn` so concurrent requests (e.g. tile fetches while the map loads) no longer queue behind each other.
+- **Hardened systemd unit in README** — dedicated `mapsplat` service user, file permission setup steps, and systemd security directives (`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp`, etc.).
+
+### Fixed
+- **Output folder writable check** — `_validate_export()` now checks `os.access(folder, os.W_OK)` and shows a clear error message before attempting an export into a read-only location.
+- **Robust style.json import** — `_import_style()` now reads and validates the file before accepting it: checks that JSON parses, that the top level is an object, that `"version"` is `8`, and that a `"layers"` key exists. Malformed or wrong-version files are rejected with a descriptive dialog.
+- **serve.py: improved Range request parsing** — correctly handles suffix ranges (`bytes=-N`), rejects multi-range requests, and closes the file handle on seek errors; directory listing requests return 403.
+- **serve.py: hide server banner** — suppresses the default Python `Server:` response header.
+
 ## v0.6.7 — 2026-03-03
 
 ### Fixed
