@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.6-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.6.12-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
@@ -142,6 +142,22 @@ This project is based on the work by the folks at Protomaps. They host builds of
 - **Single sprite sheet**: All custom icons share one sprite; icon names must be unique across exported layers
 - **No authentication**: The viewer and `serve.py` serve files without access control
 - **`python -m http.server` will not work**: The standard Python dev server does not reliably support HTTP Range requests; use the included `serve.py` or a proper web server
+
+### Opacity and transparency
+
+- **Semi-transparent polygon fills are supported** when the transparency is set via the fill **color alpha** (the opacity/alpha slider inside the color picker in QGIS Symbol properties). The alpha value is written to `fill-opacity` in the exported style.
+- **Layer-level opacity is not captured.** QGIS offers a second, separate opacity control under *Layer Properties → Rendering → Opacity*. This value is not read by MapSplat — only the color alpha is used. If your polygons appear more opaque in the viewer than they do in QGIS, the transparency was set at the layer level rather than in the color picker. Move it to the fill color alpha to carry it through to the export.
+
+### Unsupported fill and symbol types
+
+Some QGIS fill types cannot be reproduced in MapLibre vector tile styles:
+
+- **Gradient fills** (radial or linear color gradients) — exported as a solid fill. The exported color is the darkest color found among the gradient stops, chosen by perceived luminance. The gradient itself is not preserved.
+- **Shape-burst fills** — same as gradient; exported as a solid color approximation.
+- **Line pattern and point pattern fills** (hatching, dots) — exported as a semi-transparent solid fill using the pattern's foreground color.
+- **Drop shadows, background shapes, and callout lines** on labels — no MapLibre equivalent; silently omitted.
+
+There is no way to represent these effects in the MapLibre GL Style JSON spec, so the output will always differ from the QGIS canvas for these cases. If visual fidelity matters, convert the symbol to a Simple Fill in QGIS before exporting.
 
 ---
 
@@ -597,13 +613,17 @@ CORS is only needed when `index.html` and `.pmtiles` files are served from **dif
 | QGIS Renderer | Support | Notes |
 |---------------|---------|-------|
 | Single Symbol | Full | Fill, line, and marker symbol layers |
-| Categorized | Full | MapLibre `match` expressions |
-| Graduated | Full | MapLibre `step` expressions |
+| Categorized | Full | MapLibre `match` expressions; per-category opacity preserved |
+| Graduated | Full | MapLibre `interpolate` expressions for smooth color and size transitions |
 | Rule-based | Partial | Simple filter rules converted; complex nested rules fall back to default |
 | SVG marker (single symbol) | Full | Rasterised to sprite atlas; exported as MapLibre `symbol` layer |
 | Heatmap | Fallback | Rendered as simple circles |
 | Point Cluster | Fallback | Rendered as simple circles |
-| Labels | Partial | Text field, font, size, color, halo extracted; complex expressions may simplify |
+| Labels | Partial | Text field, font, size, color, halo, placement extracted; drop shadows and callouts omitted |
+
+**Fill opacity**: Semi-transparent polygon fills are supported when transparency is set via the fill color's alpha channel. See [Opacity and transparency](#opacity-and-transparency) for the distinction between color alpha and layer-level opacity.
+
+**Unsupported fill types**: Gradient fills, shape-burst fills, and pattern fills are approximated as solid colors. See [Unsupported fill and symbol types](#unsupported-fill-and-symbol-types) for details.
 
 **Unit conversion**: QGIS millimetre sizes are converted to pixels at 96 DPI (1 mm ≈ 3.78 px).
 
