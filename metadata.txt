@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=3.40
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.11
+version=0.6.12
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,10 @@ repository=https://github.com/johnzastrow/mapsplat
 hasProcessingProvider=no
 
 changelog=
+    0.6.12 - Better fallback for unsupported symbol layer types
+    - Gradient fills, shape-burst fills, and other unrecognized types now render using
+      the darkest color extracted from the symbol layer instead of a hardcoded blue
+    - Same improvement for unrecognized line and marker symbol layer types
     0.6.11 - Fix serve.py 403 on root URL
     - serve.py now serves index.html when browser hits the root URL
     0.6.10 - Graduated renderer uses interpolate expressions

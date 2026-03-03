@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.11"
+__version__ = "0.6.12"
 
 import os
 from qgis.core import (
@@ -500,21 +500,21 @@ class StyleConverter:
 
             return result
 
-        # Pattern fills - note as comment, limited MapLibre support
-        elif isinstance(sym_layer, (QgsLinePatternFillSymbolLayer, QgsPointPatternFillSymbolLayer)):
-            # Patterns need image sprites - use solid color fallback
-            return {
-                "id": layer_id,
-                "type": "fill",
-                "source": source_name,
-                "source-layer": source_layer,
-                "paint": {
-                    "fill-color": self.DEFAULT_FILL_COLOR,
-                    "fill-opacity": 0.5,
-                }
+        # Unsupported fill type (gradient, shape-burst, pattern, etc.) —
+        # extract the darkest available color rather than using a hardcoded default.
+        color = self._extract_darkest_color(sym_layer)
+        opacity = 0.5 if isinstance(sym_layer, (QgsLinePatternFillSymbolLayer,
+                                                 QgsPointPatternFillSymbolLayer)) else 0.7
+        return {
+            "id": layer_id,
+            "type": "fill",
+            "source": source_name,
+            "source-layer": source_layer,
+            "paint": {
+                "fill-color": color if color else self.DEFAULT_FILL_COLOR,
+                "fill-opacity": opacity,
             }
-
-        return None
+        }
 
     def _line_symbol_layer_to_maplibre(self, sym_layer, layer_id, source_layer, source_name):
         """Convert a line symbol layer to MapLibre layer."""
@@ -560,7 +560,18 @@ class StyleConverter:
 
             return result
 
-        return None
+        # Unsupported line type — extract best available color.
+        color = self._extract_darkest_color(sym_layer)
+        return {
+            "id": layer_id,
+            "type": "line",
+            "source": source_name,
+            "source-layer": source_layer,
+            "paint": {
+                "line-color": color if color else self.DEFAULT_LINE_COLOR,
+                "line-width": 1,
+            }
+        }
 
     def _marker_symbol_layer_to_maplibre(self, sym_layer, layer_id, source_layer, source_name):
         """Convert a marker symbol layer to MapLibre layer."""
@@ -629,7 +640,20 @@ class StyleConverter:
                 }
             }
 
-        return None
+        # Unsupported marker type — extract best available color.
+        extracted = self._extract_darkest_color(sym_layer)
+        return {
+            "id": layer_id,
+            "type": "circle",
+            "source": source_name,
+            "source-layer": source_layer,
+            "paint": {
+                "circle-color": extracted if extracted else self.DEFAULT_POINT_COLOR,
+                "circle-radius": 6,
+                "circle-stroke-color": "#ffffff",
+                "circle-stroke-width": 1,
+            }
+        }
 
     def _build_symbol_layer_for_sprite(self, layer_id, sprite_key, source_name, source_layer, size_px):
         """Build a MapLibre symbol layer referencing a pre-rendered sprite entry.
@@ -1066,6 +1090,32 @@ class StyleConverter:
             }]
 
         return []
+
+    def _extract_darkest_color(self, sym_layer):
+        """Try to extract the darkest usable color from an unsupported symbol layer.
+
+        Tries common color accessor methods (color, fillColor, color2) and returns
+        the hex name of the darkest one by perceived luminance.  Returns None if no
+        valid color can be found.
+
+        :param sym_layer: Any QgsSymbolLayer (or duck-typed equivalent)
+        :returns: Hex color string like '#336699', or None
+        """
+        candidates = []
+        for attr_name in ("color", "fillColor", "color2"):
+            try:
+                c = getattr(sym_layer, attr_name)()
+                if c and c.isValid():
+                    candidates.append(c)
+            except (AttributeError, TypeError):
+                pass
+        if not candidates:
+            return None
+
+        def _luminance(c):
+            return 0.299 * c.red() + 0.587 * c.green() + 0.114 * c.blue()
+
+        return min(candidates, key=_luminance).name()
 
     def _convert_size(self, size, unit):
         """Convert a size value from QGIS units to pixels.

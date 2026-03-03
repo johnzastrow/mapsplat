@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.12 — 2026-03-03
+
+### Fixed
+- **Unsupported symbol layer types no longer render as default blue** — fill handlers for gradient fills, shape-burst fills, and other unrecognized QGIS fill types now extract the darkest available color from the symbol layer's `color()`, `fillColor()`, or `color2()` accessors instead of falling back to the hardcoded `#3388ff` default. The same improvement applies to unrecognized line and marker symbol layer types. A new `_extract_darkest_color()` helper picks the lowest-luminance color by perceived brightness (`0.299R + 0.587G + 0.114B`).
+
 ## v0.6.11 — 2026-03-03
 
 ### Fixed

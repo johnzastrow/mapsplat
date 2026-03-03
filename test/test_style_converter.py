@@ -4,7 +4,7 @@ MapSplat - Style Converter Tests
 Tests for the QGIS to MapLibre style conversion.
 """
 
-__version__ = "0.6.11"
+__version__ = "0.6.12"
 
 import unittest
 import sys
@@ -828,6 +828,184 @@ class TestGraduatedInterpolateExpression(unittest.TestCase):
         # Falls back to default fill style — should not raise and must return a list
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
+
+
+def _make_mock_color(hex_val, r, g, b, alpha=1.0):
+    """Helper: build a mock QColor with the given properties."""
+    from unittest.mock import MagicMock
+    c = MagicMock()
+    c.name.return_value = hex_val
+    c.isValid.return_value = True
+    c.red.return_value = r
+    c.green.return_value = g
+    c.blue.return_value = b
+    c.alphaF.return_value = alpha
+    return c
+
+
+class TestExtractDarkestColor(unittest.TestCase):
+    """Test _extract_darkest_color() — pure Python, no QGIS types needed."""
+
+    def _call(self, sym_layer):
+        from style_converter import StyleConverter
+        return StyleConverter([], {})._extract_darkest_color(sym_layer)
+
+    def test_returns_none_when_no_color_methods(self):
+        class _NoColor:
+            pass
+        self.assertIsNone(self._call(_NoColor()))
+
+    def test_returns_color_when_only_color_accessor_present(self):
+        class _HasColor:
+            def color(self):
+                return _make_mock_color("#336699", 51, 102, 153)
+        self.assertEqual(self._call(_HasColor()), "#336699")
+
+    def test_picks_darkest_of_two_colors(self):
+        class _TwoColors:
+            def color(self):
+                return _make_mock_color("#888888", 136, 136, 136)  # mid-gray
+            def color2(self):
+                return _make_mock_color("#ffffff", 255, 255, 255)  # white
+        self.assertEqual(self._call(_TwoColors()), "#888888")
+
+    def test_ignores_invalid_color(self):
+        from unittest.mock import MagicMock
+        invalid = MagicMock()
+        invalid.isValid.return_value = False
+
+        class _Mixed:
+            def color(self):
+                return invalid
+            def fillColor(self):
+                return _make_mock_color("#112233", 17, 34, 51)
+        self.assertEqual(self._call(_Mixed()), "#112233")
+
+    def test_black_beats_gray(self):
+        class _BlackAndGray:
+            def color(self):
+                return _make_mock_color("#000000", 0, 0, 0)
+            def color2(self):
+                return _make_mock_color("#aaaaaa", 170, 170, 170)
+        self.assertEqual(self._call(_BlackAndGray()), "#000000")
+
+
+class TestUnsupportedFillFallback(unittest.TestCase):
+    """Unsupported fill symbol layer types (e.g. gradient) should not return None.
+
+    Instead they should produce a fill layer using the darkest available color,
+    never the hardcoded default blue.
+    """
+
+    class _FakeFillSL:    pass     # stands in for QgsSimpleFillSymbolLayer
+    class _FakeLinePat:  pass     # stands in for QgsLinePatternFillSymbolLayer
+    class _FakePointPat: pass     # stands in for QgsPointPatternFillSymbolLayer
+
+    class _FakeGradientSL:
+        """Gray-to-white gradient — neither _FakeFillSL nor a pattern."""
+        def color(self):
+            return _make_mock_color("#888888", 136, 136, 136)   # gray (start)
+        def color2(self):
+            return _make_mock_color("#ffffff", 255, 255, 255)   # white (end)
+
+    def _call(self, sym_layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        with patch.object(sc, "QgsSimpleFillSymbolLayer", self._FakeFillSL), \
+             patch.object(sc, "QgsLinePatternFillSymbolLayer", self._FakeLinePat), \
+             patch.object(sc, "QgsPointPatternFillSymbolLayer", self._FakePointPat):
+            return c._fill_symbol_layer_to_maplibre(
+                sym_layer, "test_layer", "source_layer", "mapsplat"
+            )
+
+    def test_unsupported_fill_returns_a_layer_not_none(self):
+        result = self._call(self._FakeGradientSL())
+        self.assertIsNotNone(result)
+
+    def test_unsupported_fill_returns_fill_type(self):
+        result = self._call(self._FakeGradientSL())
+        self.assertEqual(result["type"], "fill")
+
+    def test_unsupported_fill_does_not_use_default_blue(self):
+        result = self._call(self._FakeGradientSL())
+        self.assertNotEqual(result["paint"]["fill-color"], "#3388ff")
+
+    def test_unsupported_fill_uses_darkest_of_available_colors(self):
+        # Gray (#888888) is darker than white (#ffffff)
+        result = self._call(self._FakeGradientSL())
+        self.assertEqual(result["paint"]["fill-color"], "#888888")
+
+
+class TestUnsupportedLineFallback(unittest.TestCase):
+    """Unsupported line symbol layer types should produce a line layer, not None."""
+
+    class _FakeLineSL: pass   # stands in for QgsSimpleLineSymbolLayer
+
+    class _FakeArrowSL:
+        """Simulates an arrow line symbol layer with a color."""
+        def color(self):
+            return _make_mock_color("#442200", 68, 34, 0)   # dark brown
+
+    def _call(self, sym_layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        with patch.object(sc, "QgsSimpleLineSymbolLayer", self._FakeLineSL):
+            return c._line_symbol_layer_to_maplibre(
+                sym_layer, "test_layer", "source_layer", "mapsplat"
+            )
+
+    def test_unsupported_line_returns_a_layer_not_none(self):
+        result = self._call(self._FakeArrowSL())
+        self.assertIsNotNone(result)
+
+    def test_unsupported_line_returns_line_type(self):
+        result = self._call(self._FakeArrowSL())
+        self.assertEqual(result["type"], "line")
+
+    def test_unsupported_line_uses_extracted_color(self):
+        result = self._call(self._FakeArrowSL())
+        self.assertEqual(result["paint"]["line-color"], "#442200")
+
+
+class TestUnsupportedMarkerFallback(unittest.TestCase):
+    """Unsupported marker symbol layer types should produce a circle layer, not None."""
+
+    class _FakeSimpleMarker:   pass   # QgsSimpleMarkerSymbolLayer
+    class _FakeSvgMarker:      pass   # QgsSvgMarkerSymbolLayer
+    class _FakeFontMarker:     pass   # QgsFontMarkerSymbolLayer
+
+    class _FakeRasterMarkerSL:
+        """Simulates a raster-image marker with a tint color."""
+        def color(self):
+            return _make_mock_color("#1a1a2e", 26, 26, 46)   # very dark blue
+
+    def _call(self, sym_layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        with patch.object(sc, "QgsSimpleMarkerSymbolLayer", self._FakeSimpleMarker), \
+             patch.object(sc, "QgsSvgMarkerSymbolLayer", self._FakeSvgMarker), \
+             patch.object(sc, "QgsFontMarkerSymbolLayer", self._FakeFontMarker):
+            return c._marker_symbol_layer_to_maplibre(
+                sym_layer, "test_layer", "source_layer", "mapsplat"
+            )
+
+    def test_unsupported_marker_returns_a_layer_not_none(self):
+        result = self._call(self._FakeRasterMarkerSL())
+        self.assertIsNotNone(result)
+
+    def test_unsupported_marker_returns_circle_type(self):
+        result = self._call(self._FakeRasterMarkerSL())
+        self.assertEqual(result["type"], "circle")
+
+    def test_unsupported_marker_uses_extracted_color(self):
+        result = self._call(self._FakeRasterMarkerSL())
+        self.assertEqual(result["paint"]["circle-color"], "#1a1a2e")
 
 
 class TestGraduatedLineInterpolateExpression(unittest.TestCase):
