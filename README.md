@@ -363,9 +363,62 @@ sudo systemctl status mapsplat-myproject
 > `serve.py` is single-threaded. For higher traffic, use Nginx (see below).
 
 ### Linux VPS with Caddy as the server (production)
-This will be my preferred approach for hosting as I'm already proxying everything with Caddy 
 
-[https://docs.protomaps.com/deploy/server](https://docs.protomaps.com/deploy/server)
+Stock Caddy does **not** support HTTP Range requests for static files out of the box — Range request support requires a custom Caddy build with the [Caddy PMTiles module](https://docs.protomaps.com/deploy/server). If you cannot rebuild Caddy, the easiest approach is to run `serve.py` as a background service and let Caddy reverse-proxy to it. `serve.py` handles the Range requests; Caddy handles HTTPS termination and your existing routing.
+
+**1. Run `serve.py` as a systemd service** (same as the section above, but on a non-public port):
+
+If you need a port other than 8000 (e.g. you run multiple maps on the same host), open `serve.py` and change the `PORT` line near the top:
+
+```python
+PORT = 8001   # change from 8000 to any free port
+```
+
+Create `/etc/systemd/system/mapsplat-myproject.service`:
+```ini
+[Unit]
+Description=MapSplat Web Map — My Project
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/var/www/myproject
+ExecStart=/usr/bin/python3 /var/www/myproject/serve.py
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable mapsplat-myproject
+sudo systemctl start mapsplat-myproject
+```
+
+**2. Add a reverse proxy block to your `Caddyfile`:**
+
+```caddy
+your-domain.com {
+    reverse_proxy /myproject/* localhost:8000
+}
+```
+
+Or if the entire site is just this map:
+
+```caddy
+your-domain.com {
+    reverse_proxy localhost:8000
+}
+```
+
+Replace `8000` with whatever port you set in `serve.py`.
+
+Caddy automatically provisions and renews a TLS certificate via Let's Encrypt. The Range requests pass through the reverse proxy transparently — `serve.py` handles them, Caddy just forwards.
+
+> For higher traffic or if you want to serve the files directly without `serve.py`, use the [custom Caddy build with PMTiles support](https://docs.protomaps.com/deploy/server) or switch to Nginx (see below).
 
 ### Linux VPS with Nginx (production)
 
