@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.6.10"
+__version__ = "0.6.11"
 
 import os
 import sys
@@ -1339,8 +1339,12 @@ class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
         path = self.translate_path(self.path)
 
         if os.path.isdir(path):
-            self.send_error(403, "Directory listing not allowed")
-            return None
+            index = os.path.join(path, "index.html")
+            if os.path.exists(index):
+                path = index
+            else:
+                self.send_error(403, "Directory listing not allowed")
+                return None
 
         if not os.path.exists(path):
             self.send_error(404, "File not found")

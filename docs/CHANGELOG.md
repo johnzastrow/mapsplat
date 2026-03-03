@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.11 — 2026-03-03
+
+### Fixed
+- **`serve.py` 403 on root URL** — navigating to `http://localhost:8000/` now serves `index.html` instead of returning "Directory listing not allowed". The handler checks for `index.html` inside a directory path before refusing.
+
 ## v0.6.10 — 2026-03-03
 
 ### Changed
