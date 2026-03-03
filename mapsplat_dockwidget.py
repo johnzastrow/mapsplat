@@ -586,8 +586,8 @@ class MapSplatDockWidget(QDockWidget):
         if self.chk_save_log.isChecked():
             output_folder = self.txt_output_folder.text().strip()
             project_name = self.txt_project_name.text().strip()
-            log_path = os.path.join(output_folder, project_name, "_webmap", "export.log")
-            os.makedirs(os.path.join(output_folder, project_name, "_webmap"), exist_ok=True)
+            log_path = os.path.join(output_folder, f"{project_name}_webmap", "export.log")
+            os.makedirs(os.path.join(output_folder, f"{project_name}_webmap"), exist_ok=True)
             try:
                 from datetime import datetime
                 self._log_file = open(log_path, "a", encoding="utf-8")

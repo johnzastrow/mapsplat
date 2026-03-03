@@ -515,7 +515,7 @@ class MapSplatExporter(QObject):
         """Internal export implementation."""
         output_base = self.settings["output_folder"]
         project_name = self.settings["project_name"]
-        output_dir = os.path.join(output_base, project_name, "_webmap")
+        output_dir = os.path.join(output_base, f"{project_name}_webmap")
 
         # Create output directory structure
         self.log_message.emit(f"Creating output directory: {output_dir}", "info")
