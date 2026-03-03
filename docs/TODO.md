@@ -1,7 +1,7 @@
 # MapSplat TODO List
 
-**Version:** 0.1.1
-**Last Updated:** 2026-02-16
+**Version:** 0.6.5
+**Last Updated:** 2026-03-03
 
 ---
 
@@ -14,268 +14,164 @@
 
 ---
 
-## v0.1.x - Proof of Concept
+## Open Items
 
-### Critical (Must Complete)
-
-- [x] 🔴 **Validate ogr2ogr PMTiles generation**
-  - Test with GDAL 3.8+ on Linux/Windows ✅
-  - Handle ogr2ogr path detection ✅
-  - Verify output PMTiles are valid ✅
-  - File: `exporter.py`
+### Critical
 
 - [ ] 🔴 **Bundle MapLibre GL JS assets for offline use**
-  - Currently using CDN (works online)
-  - Option 1: Download at runtime during export
-    - Fetch maplibre-gl.js (v4.x) from unpkg
-    - Fetch maplibre-gl.css
-    - Fetch pmtiles.js (v3.x)
-    - Save to `lib/` directory
-    - Update HTML to use local paths when bundled
-  - Option 2: Ship pre-bundled assets with plugin
-  - Add checkbox: "Bundle for offline use"
+  - Currently using CDN — viewer breaks without internet
+  - Download at export time: `maplibre-gl.js`, `maplibre-gl.css`, `pmtiles.js`
+  - Save to `lib/` directory, update HTML to use local paths
+  - Add "Bundle for offline use" checkbox to Export tab
   - File: `exporter.py:_copy_maplibre_assets()`, `mapsplat_dockwidget.py`
 
-### High Priority
+### High
 
-- [x] 🟠 **GDAL version check**
-  - Check GDAL version before conversion ✅
-  - Warn if PMTiles driver not available ✅
-  - Provide helpful error message ✅
-  - File: `exporter.py:_check_gdal_version()`
+- [ ] 🟠 **Handle null category values in categorized renderer**
+  - Categorized renderer can have a NULL category
+  - MapLibre `match` expressions handle null differently than QGIS
+  - File: `style_converter.py:_convert_categorized()`
 
-- [x] 🟠 **Test with real QGIS project**
-  - Tested with Natural Earth data ✅
-  - Single symbol works ✅
-  - Categorized, graduated need more testing
-  - Document any issues found
+- [ ] 🟠 **Handle "all other values" catch-all category**
+  - QGIS has a catch-all category for unmatched values
+  - Map to the default/fallback value in MapLibre `match` expression
+  - File: `style_converter.py:_convert_categorized()`
 
-- [x] 🟠 **Handle export errors gracefully**
-  - Catch ogr2ogr failures ✅
-  - Show meaningful error messages ✅
-  - Cancel button to abort long exports ✅
-  - File: `exporter.py`
+- [ ] 🟠 **Layer ordering control**
+  - Currently layer order in output may not match QGIS layer panel order
+  - Respect QGIS layer order in style.json layer list
+  - File: `mapsplat_dockwidget.py`, `style_converter.py`
 
-### Medium Priority
-
-- [ ] 🟡 **Add layer count to UI**
-  - Show "X layers selected" summary
-  - Update on selection change
-  - File: `mapsplat_dockwidget.py`
+### Medium
 
 - [ ] 🟡 **Remember last output folder**
-  - Store in QSettings
-  - Restore on plugin open
+  - Store in QSettings, restore on plugin open
+  - File: `mapsplat_dockwidget.py`
+
+- [ ] 🟡 **Add layer count to UI**
+  - Show "X of Y layers selected" summary, update on selection change
   - File: `mapsplat_dockwidget.py`
 
 - [ ] 🟡 **Validate output folder is writable**
-  - Check write permissions before export
-  - Show error if not writable
+  - Check write permissions before starting export
   - File: `mapsplat_dockwidget.py:_validate_export()`
 
----
-
-## v0.2.x - Symbology Completeness
-
-### High Priority
-
-- [ ] 🟠 **Extract symbol opacity**
-  - Fill opacity from QgsSimpleFillSymbolLayer
-  - Line opacity from QgsSimpleLineSymbolLayer
-  - Apply to MapLibre paint properties
-  - File: `style_converter.py`
-
-- [ ] 🟠 **Extract line width properly**
-  - Handle unit conversion (mm to px)
-  - Scale appropriately for web
-  - File: `style_converter.py:_extract_line_width()`
-
-- [ ] 🟠 **Handle null category values**
-  - Categorized renderer can have NULL category
-  - MapLibre uses different null handling
-  - File: `style_converter.py:_convert_categorized()`
-
-- [ ] 🟠 **Handle "all other values" category**
-  - QGIS has catch-all category
-  - Map to MapLibre default in match expression
-  - File: `style_converter.py:_convert_categorized()`
-
-### Medium Priority
-
 - [ ] 🟡 **Support graduated color ramps**
-  - Extract colors from QgsGraduatedSymbolRenderer
-  - Generate interpolate expression for smooth transitions
+  - Extract colors from `QgsGraduatedSymbolRenderer`
+  - Generate MapLibre `interpolate` expression for smooth color transitions
   - File: `style_converter.py:_convert_graduated()`
 
 - [ ] 🟡 **Support graduated size**
-  - Point size based on attribute value
-  - Line width based on attribute value
+  - Point size or line width driven by attribute value
   - File: `style_converter.py`
 
 - [ ] 🟡 **Add minzoom/maxzoom per layer**
-  - Extract from QGIS scale-dependent visibility
+  - Extract from QGIS scale-dependent visibility settings
   - Apply to MapLibre layer definition
   - File: `style_converter.py`
 
----
-
-## v0.3.x - Multi-Layer & Options
-
-### High Priority
-
-- [ ] 🟠 **Separate PMTiles per layer**
-  - Export each layer to own PMTiles file
-  - Update sources in style.json
-  - Update HTML template
-  - File: `exporter.py`
-
-- [ ] 🟠 **Layer ordering control**
-  - Respect QGIS layer order
-  - Or allow user to reorder in UI
-  - File: `mapsplat_dockwidget.py`, `style_converter.py`
-
-### Medium Priority
-
-- [x] 🟡 **Configurable zoom range**
-  - Add max zoom spinbox to UI ✅
-  - Pass to ogr2ogr MAXZOOM ✅
-  - Default: 6 (reasonable for most data)
-  - File: `mapsplat_dockwidget.py`, `exporter.py`
-
-- [ ] 🟡 **Layer visibility toggles in viewer**
-  - Add checkbox per layer in HTML
-  - Toggle visibility via MapLibre API
-  - File: `exporter.py:_get_html_template()`
-
----
-
-## v0.4.x - Raster Support
-
-- [ ] 🟠 **Detect raster layers**
-  - Show in layer list with [Raster] prefix
-  - Already partially implemented
-  - File: `mapsplat_dockwidget.py`
-
-- [ ] 🟠 **Export raster to PMTiles**
-  - Use ogr2ogr/gdal_translate for rasters
-  - Generate raster PMTiles
-  - File: `exporter.py`
-
-- [ ] 🟡 **Raster/vector layer ordering**
-  - Rasters typically go below vectors
-  - Handle in style.json generation
-  - File: `style_converter.py`
-
----
-
-## v0.5.x - External Basemaps
-
-- [ ] 🟡 **External basemap URL configuration**
-  - Add input field for basemap tile URL
-  - Support OSM, Stadia, MapTiler patterns
-  - File: `mapsplat_dockwidget.py`
-
-- [ ] 🟡 **Basemap switcher in viewer**
-  - Dropdown to switch between basemaps
-  - Remember selection in localStorage
-  - File: `exporter.py:_get_html_template()`
-
----
-
-## v0.6.x - Style Roundtripping
-
 - [ ] 🟡 **Robust style.json import**
-  - Validate imported JSON structure
-  - Handle malformed files gracefully
+  - Validate imported JSON structure before merging
+  - Handle malformed files gracefully with a clear error
   - File: `mapsplat_dockwidget.py:_import_style()`
 
-- [ ] 🟡 **Style merge strategies**
-  - Option: Replace all layers
-  - Option: Merge (imported wins)
-  - Option: Merge (generated wins)
-  - File: `exporter.py:_merge_imported_style()`
-
----
-
-## v0.7.x - Viewer Enhancements
-
 - [ ] 🟡 **Legend generation**
-  - Generate legend from style.json
-  - Show colors and labels
+  - Generate a proper legend panel from `style.json` layer colors/symbols
+  - Currently only color swatches exist; no label-driven legend
   - File: `exporter.py:_get_html_template()`
 
-- [ ] 🟡 **Fullscreen toggle**
-  - Add fullscreen button to viewer
-  - Use browser Fullscreen API
+- [ ] 🟡 **Basemap switcher in viewer**
+  - Dropdown to switch between basemap styles at runtime
+  - Remember selection in `localStorage`
   - File: `exporter.py:_get_html_template()`
+
+### Low
+
+- [ ] 🟢 **Raster layer export**
+  - Export raster layers to PMTiles via `gdal_translate`
+  - Rasters placed below vector layers in style.json
+  - File: `exporter.py`, `mapsplat_dockwidget.py`
+
+- [ ] 🟢 **External basemap URL (non-Protomaps)**
+  - Support OSM, Stadia, MapTiler XYZ tile URLs as basemap
+  - Currently basemap overlay only supports Protomaps PMTiles format
+  - File: `mapsplat_dockwidget.py`
 
 - [ ] 🟢 **Share/embed code**
-  - Generate iframe embed code
-  - Copy-to-clipboard button
+  - Generate iframe embed snippet
+  - Copy-to-clipboard button in viewer
   - File: `exporter.py:_get_html_template()`
 
----
+- [ ] 🟢 **Direct cloud upload**
+  - Upload output folder directly to AWS S3 / Cloudflare R2 / SFTP
+  - File: new `uploader.py`, `mapsplat_dockwidget.py`
 
-## Documentation
-
-- [x] 🟠 Create PLAN.md
-- [x] 🟠 Create TODO.md
-- [x] 🟠 Create CHANGELOG.md
-- [x] 🟠 Create README.md
-- [x] 🟠 Create REQUIREMENTS.md
-- [ ] 🟡 Add inline code documentation
-- [ ] 🟡 Create user guide with screenshots
-- [ ] 🟢 Create video tutorial
+- [ ] 🟢 **Preview in plugin before export**
+  - Show a small embedded map preview of the current project
+  - Complex — requires embedded browser widget
 
 ---
 
 ## Testing
 
-- [ ] 🟠 **Unit tests for style_converter.py**
-  - Test color extraction
-  - Test name sanitization
-  - Test expression generation
+- [ ] 🟠 **Expand unit tests for style_converter.py**
+  - Categorized null/catch-all handling
+  - Graduated color ramp expression generation
   - File: `test/test_style_converter.py`
 
 - [ ] 🟠 **Integration test with sample data**
-  - Create test GeoPackage
-  - Run full export
-  - Validate output structure
+  - Create a test GeoPackage with known features and styles
+  - Run full export, validate output directory structure and style.json
   - File: `test/test_exporter.py`
 
-- [ ] 🟡 **Cross-browser testing**
-  - Test viewer in Chrome, Firefox, Safari
-  - Document any compatibility issues
-
 ---
 
-## Bugs
+## Completed ✅
 
-*(None known yet - add issues here as discovered)*
+### Core
+- [x] 🔴 Validate ogr2ogr PMTiles generation (GDAL 3.8+) — v0.1.0
+- [x] 🟠 GDAL version check and PMTiles driver availability warning — v0.1.7
+- [x] 🟠 Cancel button to abort long-running exports — v0.1.7
+- [x] 🟡 Max zoom spinbox (4–18, default 6) — v0.1.7
+- [x] 🟠 serve.py with HTTP Range request support — v0.1.7
+- [x] serve.py --port and --no-browser flags — v0.6.5
 
----
+### Symbology
+- [x] 🟠 Single Symbol renderer (fill, line, marker) — v0.1.0
+- [x] 🟠 Categorized renderer — v0.1.0
+- [x] 🟠 Graduated renderer — v0.1.0
+- [x] 🟠 Opacity extraction (fill, line, circle, stroke) — v0.2.0
+- [x] 🟠 Line width unit conversion (mm → px) — v0.2.0
+- [x] 🟠 Line dash patterns, cap/join styles — v0.2.0
+- [x] 🟠 Multiple symbol layers per renderer — v0.2.0
+- [x] 🟠 Labels (text field, font, size, color, halo, placement) — v0.2.0
+- [x] 🟠 Rule-based renderer with filter expression conversion — v0.2.0
+- [x] 🟠 SVG marker → sprite atlas export — v0.4.0
 
-## Ideas / Future
+### Multi-layer & Options
+- [x] 🟠 Separate PMTiles per layer mode — v0.1.9
+- [x] 🟡 Layer visibility toggles in HTML viewer — v0.1.8
+- [x] 🟡 Legend color swatches in layer panel — v0.1.8
 
-- [ ] 🟢 Label support (complex - different engines)
-- [ ] 🟢 Rule-based renderer support
-- [ ] 🟢 SVG marker support
-- [ ] 🟢 Heatmap layer support
-- [ ] 🟢 3D terrain integration
-- [ ] 🟢 Time-based animations
-- [ ] 🟢 Direct S3/R2 upload
-- [ ] 🟢 SFTP upload
-- [ ] 🟢 Preview in plugin before export
-- [ ] 🟢 Diff viewer for style changes
+### Viewer
+- [x] 🟠 Tabbed dockwidget (Export / Viewer / Log tabs) — v0.5.0
+- [x] 🟡 7 configurable viewer controls (scale bar, geolocate, fullscreen, coords, zoom, reset-view, north-reset) — v0.5.2
+- [x] 🟡 Embeddable HTML with BEGIN/END copy-paste markers — v0.6.1
 
+### Basemap
+- [x] 🟠 Basemap overlay mode (Protomaps PMTiles, local or URL) — v0.3.0
+- [x] 🟠 Basemap clipping to data extent via pmtiles CLI — v0.3.0
+- [x] 🟠 Basemap + business layer style merge — v0.3.0
 
-## user entered
-- [x] add checkbox to also write the export log to a file in the output folder (e.g. export.log) for easier debugging and record keeping. Log file should include timestamps and log levels (INFO, ERROR, etc.) for each message and append to the file if it already exists rather than overwriting it. This would allow users to review the export process in detail after the fact and help with troubleshooting any issues that arise during export. File: `mapsplat_dockwidget.py`, `log_utils.py` ✅ v0.5.1
-- add a lot of additional map controls to the HTML viewer (e.g. scale bar, geolocate, navigation, etc.)
-- add extensive comments to the HTML template to explain how it works and how to customize it
-- add controls to the plugin to allow user to select which map controls are included in the generated HTML viewer (e.g. zoom, rotation, fullscreen, etc.)
-- add support for exporting to other formats besides PMTiles (e.g. GeoJSON, Shapefile, etc.)
-- add support for exporting to cloud storage services (e.g. AWS S3, Google Cloud Storage, etc.)
-- bring all assets locally for offline use, including MapLibre GL JS and PMTiles JS libraries, to ensure the generated HTML viewer works without an internet connection when deploying to environments with limited connectivity. This would involve downloading the necessary JavaScript and CSS files during the export process and referencing them locally in the generated HTML file. File: `exporter.py`, `mapsplat_dockwidget.py`
-- 
--
+### Config & Logging
+- [x] 🟠 Export log to file with timestamps and log levels — v0.5.1
+- [x] 🟠 Config save/load (TOML, human-editable) — v0.6.0
+
+### Style Roundtripping
+- [x] 🟡 Export style.json + re-import from Maputnik — v0.2.2
+- [x] 🟡 Style-only export (skip data, regenerate HTML/style) — v0.2.1
+
+### Documentation
+- [x] PLAN.md, TODO.md, CHANGELOG.md, README.md, REQUIREMENTS.md
+- [x] README table of contents — v0.6.5
+- [x] Deployment guides (GitHub Pages, Netlify, S3, Nginx, Caddy) — v0.6.4
