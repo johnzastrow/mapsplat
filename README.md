@@ -10,6 +10,45 @@
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
+---
+
+## Table of Contents
+
+- [Screenshots](#screenshots)
+- [Features](#features)
+- [Limitations](#limitations)
+- [Requirements](#requirements)
+- [Installation](#installation)
+  - [From ZIP](#from-zip-recommended-for-most-users)
+  - [From Source](#from-source-development)
+  - [Manual Installation](#manual-installation)
+- [Map Production Workflow](#map-production-workflow)
+  - [Step 1 — Prepare your QGIS project](#step-1--prepare-your-qgis-project)
+  - [Step 2 — Open the MapSplat panel](#step-2--open-the-mapsplat-panel)
+  - [Step 3 — Configure the Export tab](#step-3--configure-the-export-tab)
+  - [Step 4 — Configure the Viewer tab](#step-4--configure-the-viewer-tab)
+  - [Step 5 — Save a config](#step-5--save-a-config-optional-but-recommended)
+  - [Step 6 — Export](#step-6--export)
+  - [Step 7 — View locally](#step-7--view-locally)
+- [Output Structure](#output-structure)
+- [Embedding the Map in an Existing Page](#embedding-the-map-in-an-existing-page)
+- [Local Viewing](#local-viewing)
+- [Deployment](#deployment)
+  - [Static hosting (GitHub Pages, Netlify, Vercel, S3)](#static-hosting-github-pages-netlify-vercel-s3)
+  - [Linux VPS with serve.py](#linux-vps-with-servepy-low-traffic)
+  - [Linux VPS with Caddy](#linux-vps-with-caddy-as-the-server-production)
+  - [Linux VPS with Nginx](#linux-vps-with-nginx-production)
+  - [CORS configuration](#cors-configuration)
+- [Style Editing with Maputnik](#style-editing-with-maputnik)
+- [Supported Symbology](#supported-symbology)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+- [Credits](#credits)
+
+---
+
 **Quick start:**
 1. Install the plugin (yes, downloading the .zip and manually adding it to QGIS works)
 2. Put the [pmtiles CLI](https://github.com/protomaps/go-pmtiles/releases) on your PATH so QGIS can just use it as you
