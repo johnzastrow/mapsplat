@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.3-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.6.4-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
@@ -605,8 +605,8 @@ mapsplat/
 Bump `__version__` in all seven `.py` modules and `version=` in `metadata.txt` together. Update `docs/CHANGELOG.md`. Releases are created by pushing a version tag — the CI workflow builds `mapsplat.zip` and publishes the GitHub Release automatically:
 
 ```bash
-git tag v0.6.3
-git push origin v0.6.3
+git tag v0.6.4
+git push origin v0.6.4
 ```
 
 ---

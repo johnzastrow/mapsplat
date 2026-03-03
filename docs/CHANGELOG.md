@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.4 — 2026-03-02
+
+### Added
+- **Caddy reverse-proxy instructions** — README now documents how to run `serve.py` behind stock Caddy for small deployments where rebuilding Caddy with the PMTiles module is not an option.
+
 ## v0.6.3 — 2026-03-02
 
 ### Changed
