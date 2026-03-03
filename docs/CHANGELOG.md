@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.10 — 2026-03-03
+
+### Changed
+- **Graduated renderer uses `interpolate` expressions** — `_convert_graduated()` now emits `["interpolate", ["linear"], ["get", attr], ...]` for polygon `fill-color`/`fill-opacity`, line `line-color`/`line-width`, and point `circle-color`/`circle-radius`. Each expression includes stops at `lowerValue` of every range plus a capping stop at `upperValue` of the last range, producing smooth color and size transitions instead of discrete jumps.
+
 ## v0.6.9 — 2026-03-03
 
 ### Added

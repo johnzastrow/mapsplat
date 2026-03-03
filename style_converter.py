@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.9"
+__version__ = "0.6.10"
 
 import os
 from qgis.core import (
@@ -831,22 +831,8 @@ class StyleConverter:
             return self._create_default_style(layer, source_layer, geom_type, source_name)
 
         if geom_type == 2:  # Polygon
-            # Use interpolate for smoother gradients
-            fill_expr = ["step", ["get", attr_name]]
-            opacity_expr = ["step", ["get", attr_name]]
-
-            first_sym = ranges[0].symbol()
-            if first_sym and first_sym.symbolLayerCount() > 0:
-                first_layer = first_sym.symbolLayer(0)
-                if isinstance(first_layer, QgsSimpleFillSymbolLayer):
-                    fill_expr.append(first_layer.fillColor().name())
-                    opacity_expr.append(first_layer.fillColor().alphaF())
-                else:
-                    fill_expr.append(self.DEFAULT_FILL_COLOR)
-                    opacity_expr.append(0.7)
-            else:
-                fill_expr.append(self.DEFAULT_FILL_COLOR)
-                opacity_expr.append(0.7)
+            fill_expr = ["interpolate", ["linear"], ["get", attr_name]]
+            opacity_expr = ["interpolate", ["linear"], ["get", attr_name]]
 
             for r in ranges:
                 sym = r.symbol()
@@ -855,6 +841,16 @@ class StyleConverter:
                     if isinstance(sym_layer, QgsSimpleFillSymbolLayer):
                         fill_expr.extend([r.lowerValue(), sym_layer.fillColor().name()])
                         opacity_expr.extend([r.lowerValue(), sym_layer.fillColor().alphaF()])
+
+            # Capping stop: upperValue of last range keeps last color/opacity
+            if len(ranges) > 0:
+                last_r = ranges[-1]
+                last_sym = last_r.symbol()
+                if last_sym and last_sym.symbolLayerCount() > 0:
+                    last_sl = last_sym.symbolLayer(0)
+                    if isinstance(last_sl, QgsSimpleFillSymbolLayer):
+                        fill_expr.extend([last_r.upperValue(), last_sl.fillColor().name()])
+                        opacity_expr.extend([last_r.upperValue(), last_sl.fillColor().alphaF()])
 
             layers.append({
                 "id": source_layer,
@@ -869,21 +865,8 @@ class StyleConverter:
             })
 
         elif geom_type == 1:  # Line
-            line_expr = ["step", ["get", attr_name]]
-            width_expr = ["step", ["get", attr_name]]
-
-            first_sym = ranges[0].symbol()
-            if first_sym and first_sym.symbolLayerCount() > 0:
-                first_layer = first_sym.symbolLayer(0)
-                if isinstance(first_layer, QgsSimpleLineSymbolLayer):
-                    line_expr.append(first_layer.color().name())
-                    width_expr.append(self._convert_size(first_layer.width(), first_layer.widthUnit()))
-                else:
-                    line_expr.append(self.DEFAULT_LINE_COLOR)
-                    width_expr.append(2)
-            else:
-                line_expr.append(self.DEFAULT_LINE_COLOR)
-                width_expr.append(2)
+            line_expr = ["interpolate", ["linear"], ["get", attr_name]]
+            width_expr = ["interpolate", ["linear"], ["get", attr_name]]
 
             for r in ranges:
                 sym = r.symbol()
@@ -892,6 +875,16 @@ class StyleConverter:
                     if isinstance(sym_layer, QgsSimpleLineSymbolLayer):
                         line_expr.extend([r.lowerValue(), sym_layer.color().name()])
                         width_expr.extend([r.lowerValue(), self._convert_size(sym_layer.width(), sym_layer.widthUnit())])
+
+            # Capping stop
+            if len(ranges) > 0:
+                last_r = ranges[-1]
+                last_sym = last_r.symbol()
+                if last_sym and last_sym.symbolLayerCount() > 0:
+                    last_sl = last_sym.symbolLayer(0)
+                    if isinstance(last_sl, QgsSimpleLineSymbolLayer):
+                        line_expr.extend([last_r.upperValue(), last_sl.color().name()])
+                        width_expr.extend([last_r.upperValue(), self._convert_size(last_sl.width(), last_sl.widthUnit())])
 
             layers.append({
                 "id": source_layer,
@@ -905,21 +898,8 @@ class StyleConverter:
             })
 
         elif geom_type == 0:  # Point
-            color_expr = ["step", ["get", attr_name]]
-            radius_expr = ["step", ["get", attr_name]]
-
-            first_sym = ranges[0].symbol()
-            if first_sym and first_sym.symbolLayerCount() > 0:
-                first_layer = first_sym.symbolLayer(0)
-                if isinstance(first_layer, QgsSimpleMarkerSymbolLayer):
-                    color_expr.append(first_layer.fillColor().name())
-                    radius_expr.append(self._convert_size(first_layer.size(), first_layer.sizeUnit()) / 2)
-                else:
-                    color_expr.append(self.DEFAULT_POINT_COLOR)
-                    radius_expr.append(6)
-            else:
-                color_expr.append(self.DEFAULT_POINT_COLOR)
-                radius_expr.append(6)
+            color_expr = ["interpolate", ["linear"], ["get", attr_name]]
+            radius_expr = ["interpolate", ["linear"], ["get", attr_name]]
 
             for r in ranges:
                 sym = r.symbol()
@@ -928,6 +908,16 @@ class StyleConverter:
                     if isinstance(sym_layer, QgsSimpleMarkerSymbolLayer):
                         color_expr.extend([r.lowerValue(), sym_layer.fillColor().name()])
                         radius_expr.extend([r.lowerValue(), self._convert_size(sym_layer.size(), sym_layer.sizeUnit()) / 2])
+
+            # Capping stop
+            if len(ranges) > 0:
+                last_r = ranges[-1]
+                last_sym = last_r.symbol()
+                if last_sym and last_sym.symbolLayerCount() > 0:
+                    last_sl = last_sym.symbolLayer(0)
+                    if isinstance(last_sl, QgsSimpleMarkerSymbolLayer):
+                        color_expr.extend([last_r.upperValue(), last_sl.fillColor().name()])
+                        radius_expr.extend([last_r.upperValue(), self._convert_size(last_sl.size(), last_sl.sizeUnit()) / 2])
 
             layers.append({
                 "id": source_layer,

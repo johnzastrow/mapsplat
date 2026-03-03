@@ -4,7 +4,7 @@ MapSplat - Style Converter Tests
 Tests for the QGIS to MapLibre style conversion.
 """
 
-__version__ = "0.6.9"
+__version__ = "0.6.10"
 
 import unittest
 import sys
@@ -732,8 +732,8 @@ class TestCategorizedMatchExpression(unittest.TestCase):
         self.assertEqual(result[0]["source-layer"], "test_layer")
 
 
-class TestGraduatedStepExpression(unittest.TestCase):
-    """Test step-expression structure from _convert_graduated (polygon case).
+class TestGraduatedInterpolateExpression(unittest.TestCase):
+    """Test interpolate-expression structure from _convert_graduated (polygon case).
 
     Patches QgsSimpleFillSymbolLayer with a real Python class so isinstance works.
     """
@@ -750,7 +750,7 @@ class TestGraduatedStepExpression(unittest.TestCase):
             c.alphaF.return_value = self._alpha
             return c
 
-    def _make_range(self, lower, color_hex):
+    def _make_range(self, lower, color_hex, upper=None):
         from unittest.mock import MagicMock
         sl = self._FakeFillSL(fill_hex=color_hex)
         sym = MagicMock()
@@ -758,6 +758,7 @@ class TestGraduatedStepExpression(unittest.TestCase):
         sym.symbolLayer.return_value = sl
         r = MagicMock()
         r.lowerValue.return_value = lower
+        r.upperValue.return_value = upper if upper is not None else lower + 100
         r.symbol.return_value = sym
         return r
 
@@ -789,26 +790,36 @@ class TestGraduatedStepExpression(unittest.TestCase):
         result = self._convert(self._make_layer("pop", ranges))
         self.assertEqual(result[0]["type"], "fill")
 
-    def test_fill_color_is_step_expression(self):
-        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+    def test_fill_color_is_interpolate_expression(self):
+        ranges = [self._make_range(0, "#aaaaaa", upper=100), self._make_range(100, "#333333", upper=200)]
         result = self._convert(self._make_layer("pop", ranges))
         fill_expr = result[0]["paint"]["fill-color"]
         self.assertIsInstance(fill_expr, list)
-        self.assertEqual(fill_expr[0], "step")
+        self.assertEqual(fill_expr[0], "interpolate")
 
-    def test_step_expression_uses_get_for_attribute(self):
-        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+    def test_interpolate_uses_linear_and_get(self):
+        ranges = [self._make_range(0, "#aaaaaa", upper=100), self._make_range(100, "#333333", upper=200)]
         result = self._convert(self._make_layer("pop", ranges))
         fill_expr = result[0]["paint"]["fill-color"]
-        # ["step", ["get", attr], first_color, lower1, color1, ...]
-        self.assertEqual(fill_expr[1], ["get", "pop"])
+        # ["interpolate", ["linear"], ["get", attr], stop1, val1, ...]
+        self.assertEqual(fill_expr[1], ["linear"])
+        self.assertEqual(fill_expr[2], ["get", "pop"])
 
-    def test_first_range_color_is_default_before_first_step(self):
-        ranges = [self._make_range(0, "#aaaaaa"), self._make_range(100, "#333333")]
+    def test_first_stop_at_lower_value(self):
+        ranges = [self._make_range(0, "#aaaaaa", upper=100), self._make_range(100, "#333333", upper=200)]
         result = self._convert(self._make_layer("pop", ranges))
         fill_expr = result[0]["paint"]["fill-color"]
-        # Index 2 is the fallback color (below first step)
-        self.assertEqual(fill_expr[2], "#aaaaaa")
+        # Index 3 is first stop (lowerValue of first range), index 4 is its color
+        self.assertEqual(fill_expr[3], 0)
+        self.assertEqual(fill_expr[4], "#aaaaaa")
+
+    def test_capping_stop_at_upper_value(self):
+        ranges = [self._make_range(0, "#aaaaaa", upper=100), self._make_range(100, "#333333", upper=200)]
+        result = self._convert(self._make_layer("pop", ranges))
+        fill_expr = result[0]["paint"]["fill-color"]
+        # Last two entries: capping stop at upperValue of last range with last range color
+        self.assertEqual(fill_expr[-2], 200)
+        self.assertEqual(fill_expr[-1], "#333333")
 
     def test_empty_ranges_produces_default_style(self):
         from unittest.mock import MagicMock
@@ -817,6 +828,192 @@ class TestGraduatedStepExpression(unittest.TestCase):
         # Falls back to default fill style — should not raise and must return a list
         self.assertIsInstance(result, list)
         self.assertGreater(len(result), 0)
+
+
+class TestGraduatedLineInterpolateExpression(unittest.TestCase):
+    """Test interpolate-expression structure from _convert_graduated (line case).
+
+    Patches QgsSimpleLineSymbolLayer with a real Python class so isinstance works.
+    """
+
+    class _FakeLineSL:
+        def __init__(self, color_hex="#0000ff", width_val=2.0):
+            self._color_hex = color_hex
+            self._width_val = width_val
+
+        def color(self):
+            from unittest.mock import MagicMock
+            c = MagicMock()
+            c.name.return_value = self._color_hex
+            return c
+
+        def width(self):
+            return self._width_val
+
+        def widthUnit(self):
+            return 0  # RenderMillimeters
+
+    def _make_range(self, lower, color_hex, width_val=2.0, upper=None):
+        from unittest.mock import MagicMock
+        sl = self._FakeLineSL(color_hex=color_hex, width_val=width_val)
+        sym = MagicMock()
+        sym.symbolLayerCount.return_value = 1
+        sym.symbolLayer.return_value = sl
+        r = MagicMock()
+        r.lowerValue.return_value = lower
+        r.upperValue.return_value = upper if upper is not None else lower + 100
+        r.symbol.return_value = sym
+        return r
+
+    def _make_layer(self, attr, ranges):
+        from unittest.mock import MagicMock
+        renderer = MagicMock()
+        renderer.classAttribute.return_value = attr
+        renderer.ranges.return_value = ranges
+        layer = MagicMock()
+        layer.name.return_value = "road_layer"
+        layer.geometryType.return_value = 1  # Line
+        layer.renderer.return_value = renderer
+        return layer
+
+    def _convert(self, layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        c._layer_counter = {}
+        c._single_file = True
+        with patch.object(sc, "QgsSimpleLineSymbolLayer", self._FakeLineSL):
+            return c._convert_graduated(
+                layer, layer.renderer(), "road_layer", 1, "mapsplat"
+            )
+
+    def test_output_is_line_type(self):
+        ranges = [self._make_range(0, "#0000ff", upper=50), self._make_range(50, "#ff0000", upper=100)]
+        result = self._convert(self._make_layer("speed", ranges))
+        self.assertEqual(result[0]["type"], "line")
+
+    def test_line_color_is_interpolate_expression(self):
+        ranges = [self._make_range(0, "#0000ff", upper=50), self._make_range(50, "#ff0000", upper=100)]
+        result = self._convert(self._make_layer("speed", ranges))
+        color_expr = result[0]["paint"]["line-color"]
+        self.assertIsInstance(color_expr, list)
+        self.assertEqual(color_expr[0], "interpolate")
+
+    def test_line_width_is_interpolate_expression(self):
+        ranges = [self._make_range(0, "#0000ff", width_val=1.0, upper=50),
+                  self._make_range(50, "#ff0000", width_val=3.0, upper=100)]
+        result = self._convert(self._make_layer("speed", ranges))
+        width_expr = result[0]["paint"]["line-width"]
+        self.assertIsInstance(width_expr, list)
+        self.assertEqual(width_expr[0], "interpolate")
+
+    def test_line_interpolate_structure(self):
+        ranges = [self._make_range(0, "#0000ff", upper=50), self._make_range(50, "#ff0000", upper=100)]
+        result = self._convert(self._make_layer("speed", ranges))
+        color_expr = result[0]["paint"]["line-color"]
+        self.assertEqual(color_expr[1], ["linear"])
+        self.assertEqual(color_expr[2], ["get", "speed"])
+
+    def test_line_capping_stop(self):
+        ranges = [self._make_range(0, "#0000ff", upper=50), self._make_range(50, "#ff0000", upper=100)]
+        result = self._convert(self._make_layer("speed", ranges))
+        color_expr = result[0]["paint"]["line-color"]
+        self.assertEqual(color_expr[-2], 100)
+        self.assertEqual(color_expr[-1], "#ff0000")
+
+
+class TestGraduatedPointInterpolateExpression(unittest.TestCase):
+    """Test interpolate-expression structure from _convert_graduated (point case).
+
+    Patches QgsSimpleMarkerSymbolLayer with a real Python class so isinstance works.
+    """
+
+    class _FakeMarkerSL:
+        def __init__(self, color_hex="#00ff00", size_val=4.0):
+            self._color_hex = color_hex
+            self._size_val = size_val
+
+        def fillColor(self):
+            from unittest.mock import MagicMock
+            c = MagicMock()
+            c.name.return_value = self._color_hex
+            return c
+
+        def size(self):
+            return self._size_val
+
+        def sizeUnit(self):
+            return 0  # RenderMillimeters
+
+    def _make_range(self, lower, color_hex, size_val=4.0, upper=None):
+        from unittest.mock import MagicMock
+        sl = self._FakeMarkerSL(color_hex=color_hex, size_val=size_val)
+        sym = MagicMock()
+        sym.symbolLayerCount.return_value = 1
+        sym.symbolLayer.return_value = sl
+        r = MagicMock()
+        r.lowerValue.return_value = lower
+        r.upperValue.return_value = upper if upper is not None else lower + 100
+        r.symbol.return_value = sym
+        return r
+
+    def _make_layer(self, attr, ranges):
+        from unittest.mock import MagicMock
+        renderer = MagicMock()
+        renderer.classAttribute.return_value = attr
+        renderer.ranges.return_value = ranges
+        layer = MagicMock()
+        layer.name.return_value = "city_layer"
+        layer.geometryType.return_value = 0  # Point
+        layer.renderer.return_value = renderer
+        return layer
+
+    def _convert(self, layer):
+        from unittest.mock import patch
+        import style_converter as sc
+        from style_converter import StyleConverter
+        c = StyleConverter([], {})
+        c._layer_counter = {}
+        c._single_file = True
+        with patch.object(sc, "QgsSimpleMarkerSymbolLayer", self._FakeMarkerSL):
+            return c._convert_graduated(
+                layer, layer.renderer(), "city_layer", 0, "mapsplat"
+            )
+
+    def test_output_is_circle_type(self):
+        ranges = [self._make_range(0, "#00ff00", upper=500), self._make_range(500, "#ff0000", upper=1000)]
+        result = self._convert(self._make_layer("population", ranges))
+        self.assertEqual(result[0]["type"], "circle")
+
+    def test_circle_color_is_interpolate_expression(self):
+        ranges = [self._make_range(0, "#00ff00", upper=500), self._make_range(500, "#ff0000", upper=1000)]
+        result = self._convert(self._make_layer("population", ranges))
+        color_expr = result[0]["paint"]["circle-color"]
+        self.assertIsInstance(color_expr, list)
+        self.assertEqual(color_expr[0], "interpolate")
+
+    def test_circle_radius_is_interpolate_expression(self):
+        ranges = [self._make_range(0, "#00ff00", size_val=4.0, upper=500),
+                  self._make_range(500, "#ff0000", size_val=8.0, upper=1000)]
+        result = self._convert(self._make_layer("population", ranges))
+        radius_expr = result[0]["paint"]["circle-radius"]
+        self.assertIsInstance(radius_expr, list)
+        self.assertEqual(radius_expr[0], "interpolate")
+
+    def test_circle_interpolate_structure(self):
+        ranges = [self._make_range(0, "#00ff00", upper=500), self._make_range(500, "#ff0000", upper=1000)]
+        result = self._convert(self._make_layer("population", ranges))
+        color_expr = result[0]["paint"]["circle-color"]
+        self.assertEqual(color_expr[1], ["linear"])
+        self.assertEqual(color_expr[2], ["get", "population"])
+
+    def test_circle_capping_stop(self):
+        ranges = [self._make_range(0, "#00ff00", upper=500), self._make_range(500, "#ff0000", upper=1000)]
+        result = self._convert(self._make_layer("population", ranges))
+        color_expr = result[0]["paint"]["circle-color"]
+        self.assertEqual(color_expr[-2], 1000)
+        self.assertEqual(color_expr[-1], "#ff0000")
 
 
 if __name__ == "__main__":

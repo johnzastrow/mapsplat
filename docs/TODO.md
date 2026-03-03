@@ -1,6 +1,6 @@
 # MapSplat TODO List
 
-**Version:** 0.6.9
+**Version:** 0.6.10
 **Last Updated:** 2026-03-03
 
 ---
@@ -49,14 +49,13 @@
 - [x] 🟡 **Validate output folder is writable** ✅ v0.6.8
   - `os.access(folder, os.W_OK)` check with descriptive error dialog
 
-- [ ] 🟡 **Support graduated color ramps**
-  - Extract colors from `QgsGraduatedSymbolRenderer`
-  - Generate MapLibre `interpolate` expression for smooth color transitions
-  - File: `style_converter.py:_convert_graduated()`
+- [x] 🟡 **Support graduated color ramps** ✅ v0.6.10
+  - `_convert_graduated()` now emits `["interpolate", ["linear"], ...]` for fill-color, line-color, and circle-color
+  - Capping stop at `upperValue` of last range ensures full extent is covered
 
-- [ ] 🟡 **Support graduated size**
-  - Point size or line width driven by attribute value
-  - File: `style_converter.py`
+- [x] 🟡 **Support graduated size** ✅ v0.6.10
+  - `fill-opacity`, `line-width`, and `circle-radius` all use `interpolate` expressions
+  - File: `style_converter.py:_convert_graduated()`
 
 - [ ] 🟡 **Add minzoom/maxzoom per layer**
   - Extract from QGIS scale-dependent visibility settings
