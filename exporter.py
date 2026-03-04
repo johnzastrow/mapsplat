@@ -175,15 +175,16 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     # Advanced legend toggle (Python → JS literal)
     _advanced_legend = 'true' if settings.get('advanced_legend') else 'false'
 
-    # Map pixel dimensions
+    # Map pixel dimensions — drives the outer container, not the map div itself.
+    # All overlay controls are children of the container so they stay clipped.
     map_w = settings.get('map_width', 0)
     map_h = settings.get('map_height', 0)
     if map_w > 0 or map_h > 0:
         w_css = f"{map_w}px" if map_w > 0 else "100%"
         h_css = f"{map_h}px" if map_h > 0 else "100vh"
-        map_div_style = f"width:{w_css};height:{h_css};"
+        container_style = f"position:relative;width:{w_css};height:{h_css};overflow:hidden;"
     else:
-        map_div_style = "position:absolute;top:0;bottom:0;width:100%;"
+        container_style = "position:absolute;top:0;bottom:0;left:0;right:0;"
 
     # Inline logo SVG (pink blob mark, 28 px, self-contained)
     _logo = (
@@ -333,7 +334,8 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     <!-- <----- BEGIN MAPSPLAT: copy the lines below into your page <body> ----- -->
     <!-- NOTE: the CDN <link> and <script> tags from the <head> section above  -->
     <!-- must also be present in your target page for the map to function.      -->
-    <div id="map" style="{map_div_style}"></div>
+    <div id="map-container" style="{container_style}">
+    <div id="map" style="width:100%;height:100%;"></div>
     <div class="info-panel">
         <div class="info-panel-header">
             {_logo}
@@ -345,6 +347,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             <div id="layer-toggles"></div>
         </div>
     </div>{coords_html}{zoom_html}{reset_view_html}{north_reset_html}
+    </div>
     <script>
         // Register PMTiles protocol
         const protocol = new pmtiles.Protocol();
