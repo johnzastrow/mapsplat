@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.13 — 2026-03-03
+
+### Fixed
+- **Legend color fidelity** — `getLayerColor()` in the HTML viewer now correctly
+  unwraps literal CSS colors from MapLibre expression arrays (`match`, `step`,
+  `interpolate`). Previously, categorized/graduated layers showed gray swatches
+  because the array expression was assigned directly to `backgroundColor`.
+  New `extractColorFromExpression()` helper walks any expression type to find the
+  first usable color string.
+
+### Added
+- **Advanced Legend** — new "Advanced Legend" checkbox on the Viewer tab. When
+  enabled, the layer-toggle legend renders one swatch + raw value label per
+  category or class break, parsed from the paint expression in `style.json` at
+  runtime. Works with `match` (categorized), `step` (graduated), and
+  `interpolate` expressions. Hidden if only a single symbol is present.
+- **Map Dimensions** — new "Map Dimensions" group on the Viewer tab with Width
+  and Height spinboxes (0 = responsive full-window, the current default). Setting
+  non-zero values pins the `<div id="map">` to exact pixel dimensions, making
+  copy-paste embedding into existing pages easier.
+
+### Changed
+- **Export tab scroll** — the Layers, Export Options, Basemap Overlay, and Output
+  groups are now wrapped in a `QScrollArea` so they scroll on small screens. Save
+  Config, Load Config, the Export button, and the progress bar are pinned in a
+  fixed strip below the scroll area and always visible.
+
 ## v0.6.12 — 2026-03-03
 
 ### Fixed

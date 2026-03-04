@@ -5,7 +5,7 @@ This module contains the dockable widget that provides the main UI
 for layer selection, export options, and triggering exports.
 """
 
-__version__ = "0.6.12"
+__version__ = "0.6.13"
 
 import os
 
@@ -43,6 +43,8 @@ from qgis.PyQt.QtWidgets import (
     QRadioButton,
     QButtonGroup,
     QTabWidget,
+    QScrollArea,
+    QFrame,
 )
 
 from qgis.core import (
@@ -138,7 +140,16 @@ class MapSplatDockWidget(QDockWidget):
         self.lbl_layer_count.setStyleSheet("color: gray; font-style: italic;")
         layer_layout.addWidget(self.lbl_layer_count)
 
-        export_layout.addWidget(layer_group)
+        # ---- Scroll area wraps all groups ----
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_widget = QWidget()
+        scroll_layout = QVBoxLayout(scroll_widget)
+        scroll_layout.setContentsMargins(0, 0, 4, 0)
+        scroll_layout.setSpacing(8)
+
+        scroll_layout.addWidget(layer_group)
 
         # ==================== Export Options ====================
         options_group = QGroupBox("Export Options")
@@ -191,7 +202,7 @@ class MapSplatDockWidget(QDockWidget):
         style_import_layout.addWidget(self.lbl_imported_style, 1)
         options_layout.addLayout(style_import_layout)
 
-        export_layout.addWidget(options_group)
+        scroll_layout.addWidget(options_group)
 
         # ==================== Basemap Overlay ====================
         self.basemap_group = QGroupBox("Basemap Overlay")
@@ -237,7 +248,7 @@ class MapSplatDockWidget(QDockWidget):
         basemap_style_layout.addWidget(self.btn_basemap_style_browse)
         basemap_layout.addLayout(basemap_style_layout)
 
-        export_layout.addWidget(self.basemap_group)
+        scroll_layout.addWidget(self.basemap_group)
 
         # Connect radio buttons to show/hide browse button
         self.radio_basemap_url.toggled.connect(self._on_basemap_source_type_changed)
@@ -271,9 +282,19 @@ class MapSplatDockWidget(QDockWidget):
         self.chk_save_log.setChecked(False)
         output_layout.addWidget(self.chk_save_log)
 
-        export_layout.addWidget(output_group)
+        scroll_layout.addWidget(output_group)
 
-        # ==================== Config Save/Load ====================
+        # Finish scroll area setup
+        scroll_area.setWidget(scroll_widget)
+        export_layout.addWidget(scroll_area)
+
+        # ==================== Separator ====================
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFrameShadow(QFrame.Sunken)
+        export_layout.addWidget(separator)
+
+        # ==================== Config Save/Load (pinned) ====================
         config_btn_layout = QHBoxLayout()
         self.btn_save_config = QPushButton("Save Config...")
         self.btn_load_config = QPushButton("Load Config...")
@@ -283,7 +304,7 @@ class MapSplatDockWidget(QDockWidget):
         config_btn_layout.addWidget(self.btn_load_config)
         export_layout.addLayout(config_btn_layout)
 
-        # ==================== Export Button ====================
+        # ==================== Export Button (pinned) ====================
         self.btn_export = QPushButton("Export Web Map")
         self.btn_export.setMinimumHeight(40)
         self.btn_export.setStyleSheet("""
@@ -328,7 +349,6 @@ class MapSplatDockWidget(QDockWidget):
         progress_layout.addWidget(self.btn_cancel)
 
         export_layout.addLayout(progress_layout)
-        export_layout.addStretch()
 
         # --- Viewer tab ---
         viewer_tab = QWidget()
@@ -378,7 +398,32 @@ class MapSplatDockWidget(QDockWidget):
         placement_row.addWidget(self.combo_label_placement)
         viewer_group_layout.addLayout(placement_row)
 
+        self.chk_advanced_legend = QCheckBox("Advanced Legend (show categories and class breaks)")
+        self.chk_advanced_legend.setChecked(False)
+        viewer_group_layout.addWidget(self.chk_advanced_legend)
+
         viewer_layout.addWidget(viewer_group)
+
+        # Map Dimensions group
+        dim_group = QGroupBox("Map Dimensions")
+        dim_layout = QHBoxLayout(dim_group)
+        dim_layout.addWidget(QLabel("Width:"))
+        self.spin_map_width = QSpinBox()
+        self.spin_map_width.setRange(0, 9999)
+        self.spin_map_width.setValue(0)
+        self.spin_map_width.setSpecialValueText("responsive")
+        self.spin_map_width.setSuffix(" px")
+        dim_layout.addWidget(self.spin_map_width)
+        dim_layout.addSpacing(12)
+        dim_layout.addWidget(QLabel("Height:"))
+        self.spin_map_height = QSpinBox()
+        self.spin_map_height.setRange(0, 9999)
+        self.spin_map_height.setValue(0)
+        self.spin_map_height.setSpecialValueText("responsive")
+        self.spin_map_height.setSuffix(" px")
+        dim_layout.addWidget(self.spin_map_height)
+        dim_layout.addStretch()
+        viewer_layout.addWidget(dim_group)
         viewer_layout.addStretch()
 
         # --- Log tab ---
@@ -738,6 +783,9 @@ class MapSplatDockWidget(QDockWidget):
             "label_placement_mode": (
                 "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
             ),
+            "advanced_legend": self.chk_advanced_legend.isChecked(),
+            "map_width": self.spin_map_width.value(),
+            "map_height": self.spin_map_height.value(),
         }
 
         # Show progress and cancel button
@@ -858,6 +906,9 @@ class MapSplatDockWidget(QDockWidget):
                 "label_placement_mode": (
                     "exact" if self.combo_label_placement.currentIndex() == 0 else "auto"
                 ),
+                "advanced_legend": self.chk_advanced_legend.isChecked(),
+                "map_width": self.spin_map_width.value(),
+                "map_height": self.spin_map_height.value(),
             },
         }
 
@@ -992,6 +1043,18 @@ class MapSplatDockWidget(QDockWidget):
         if "label_placement_mode" in viewer:
             idx = 0 if viewer["label_placement_mode"] == "exact" else 1
             self.combo_label_placement.setCurrentIndex(idx)
+            applied += 1
+
+        if "advanced_legend" in viewer:
+            self.chk_advanced_legend.setChecked(bool(viewer["advanced_legend"]))
+            applied += 1
+
+        if "map_width" in viewer:
+            self.spin_map_width.setValue(int(viewer["map_width"]))
+            applied += 1
+
+        if "map_height" in viewer:
+            self.spin_map_height.setValue(int(viewer["map_height"]))
             applied += 1
 
         self._log(f"Config loaded: {applied} settings applied from {file_path}", "info")

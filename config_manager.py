@@ -5,7 +5,7 @@ Pure-Python TOML-like config file reader/writer. No external dependencies.
 Supports human-editable config files with comments.
 """
 
-__version__ = "0.6.12"
+__version__ = "0.6.13"
 
 import os
 
@@ -38,6 +38,9 @@ _COMMENTS = {
         "reset_view": "Reset view button (fit to data)",
         "north_reset": "North-up / reset rotation button",
         "label_placement_mode": "Label placement: 'exact' (match QGIS) or 'auto' (MapLibre avoids overlaps)",
+        "advanced_legend": "Show per-category/class-break swatches and labels in the legend (true/false)",
+        "map_width": "Map pixel width; 0 = responsive full-window",
+        "map_height": "Map pixel height; 0 = responsive full-window",
     },
 }
 
@@ -70,6 +73,9 @@ _SECTION_KEYS = {
         "reset_view",
         "north_reset",
         "label_placement_mode",
+        "advanced_legend",
+        "map_width",
+        "map_height",
     ],
 }
 

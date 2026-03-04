@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.6.12"
+__version__ = "0.6.13"
 
 import os
 import sys
@@ -172,6 +172,19 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
         if settings.get('viewer_north_reset', True) else ""
     )
 
+    # Advanced legend toggle (Python → JS literal)
+    _advanced_legend = 'true' if settings.get('advanced_legend') else 'false'
+
+    # Map pixel dimensions
+    map_w = settings.get('map_width', 0)
+    map_h = settings.get('map_height', 0)
+    if map_w > 0 or map_h > 0:
+        w_css = f"{map_w}px" if map_w > 0 else "100%"
+        h_css = f"{map_h}px" if map_h > 0 else "100vh"
+        map_div_style = f"width:{w_css};height:{h_css};"
+    else:
+        map_div_style = "position:absolute;top:0;bottom:0;width:100%;"
+
     # Inline logo SVG (pink blob mark, 28 px, self-contained)
     _logo = (
         '<svg width="28" height="28" viewBox="0 0 127 127" '
@@ -238,7 +251,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     {_pmtiles_js}
     <style>
         body {{ margin: 0; padding: 0; }}
-        #map {{ position: absolute; top: 0; bottom: 0; width: 100%; }}
+        #map {{ margin: 0; }}
         .info-panel {{
             position: absolute;
             top: 10px;
@@ -310,6 +323,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             overflow: hidden;
             text-overflow: ellipsis;
         }}
+        .legend-entries {{ margin: 3px 0 3px 22px; }}
+        .legend-entry {{ display: flex; align-items: center; margin: 2px 0; font-size: 11px; color: #555; }}
+        .legend-entry .legend-swatch {{ margin-right: 5px; flex-shrink: 0; }}
     </style>
     <!-- <----- END MAPSPLAT <head> section ----- -->
 </head>
@@ -317,7 +333,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
     <!-- <----- BEGIN MAPSPLAT: copy the lines below into your page <body> ----- -->
     <!-- NOTE: the CDN <link> and <script> tags from the <head> section above  -->
     <!-- must also be present in your target page for the map to function.      -->
-    <div id="map"></div>
+    <div id="map" style="{map_div_style}"></div>
     <div class="info-panel">
         <div class="info-panel-header">
             {_logo}
@@ -358,18 +374,100 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
             // Reverse so top layers appear first in the list (MapLibre renders bottom-to-top)
             const layers = style.layers.filter(l => l['source-layer']).reverse();
 
+            // Unwrap the first literal CSS color from a MapLibre paint expression
+            function extractColorFromExpression(expr) {{
+                if (typeof expr === 'string') return (expr.startsWith('#') || expr.startsWith('rgb')) ? expr : null;
+                if (!Array.isArray(expr)) return null;
+                const op = expr[0];
+                if (op === 'match') {{
+                    // ["match", input, val1, out1, val2, out2, ..., fallback]
+                    for (let i = 3; i < expr.length - 1; i += 2) {{
+                        if (typeof expr[i] === 'string') return expr[i];
+                    }}
+                    const fb = expr[expr.length - 1];
+                    if (typeof fb === 'string') return fb;
+                }} else if (op === 'step') {{
+                    // ["step", input, default, stop1, val1, ...]
+                    if (typeof expr[2] === 'string') return expr[2];
+                }} else if (op === 'interpolate') {{
+                    // ["interpolate", interp, input, stop1, val1, ..., capStop, capVal]
+                    const vals = [];
+                    for (let i = 4; i < expr.length; i += 2) {{
+                        if (typeof expr[i] === 'string') vals.push(expr[i]);
+                    }}
+                    if (vals.length) return vals[Math.floor(vals.length / 2)];
+                }}
+                for (let i = 1; i < expr.length; i++) {{
+                    const found = extractColorFromExpression(expr[i]);
+                    if (found) return found;
+                }}
+                return null;
+            }}
+
             // Helper to extract color from layer paint properties
             function getLayerColor(layer) {{
                 const paint = layer.paint || {{}};
-                // Try different color properties based on layer type
-                return paint['fill-color'] || paint['line-color'] ||
-                       paint['circle-color'] || paint['text-color'] ||
-                       paint['icon-color'] || '#888888';
+                const raw = paint['fill-color'] || paint['line-color'] ||
+                            paint['circle-color'] || paint['text-color'] || paint['icon-color'];
+                if (!raw) return '#888888';
+                return extractColorFromExpression(raw) || '#888888';
             }}
 
             // Helper to get layer geometry type
             function getLayerType(layer) {{
                 return layer.type; // fill, line, circle, symbol, etc.
+            }}
+
+            // Build per-class/category legend entries from a layer's paint expression
+            function buildLegendEntries(layer) {{
+                const paint = layer.paint || {{}};
+                const prop = paint['fill-color'] || paint['line-color'] ||
+                             paint['circle-color'] || paint['text-color'];
+                if (!prop) return [];
+                const ltype = layer.type;
+                function makeSwatch(color) {{
+                    const s = document.createElement('div');
+                    s.className = 'legend-swatch' + (ltype === 'line' ? ' line' : ltype === 'circle' ? ' circle' : '');
+                    s.style.backgroundColor = color;
+                    return s;
+                }}
+                function makeEntry(color, label) {{
+                    const row = document.createElement('div');
+                    row.className = 'legend-entry';
+                    row.appendChild(makeSwatch(color));
+                    const lbl = document.createElement('span');
+                    lbl.textContent = String(label);
+                    row.appendChild(lbl);
+                    return row;
+                }}
+                const entries = [];
+                if (typeof prop === 'string') {{
+                    entries.push(makeEntry(prop, ''));
+                }} else if (Array.isArray(prop)) {{
+                    const op = prop[0];
+                    if (op === 'match') {{
+                        for (let i = 2; i < prop.length - 1; i += 2) {{
+                            const val = prop[i], color = prop[i + 1];
+                            if (typeof color === 'string')
+                                entries.push(makeEntry(color, val === '__null__' ? '(no value)' : val));
+                        }}
+                        const fb = prop[prop.length - 1];
+                        if (typeof fb === 'string') entries.push(makeEntry(fb, 'all others'));
+                    }} else if (op === 'step') {{
+                        if (typeof prop[2] === 'string') entries.push(makeEntry(prop[2], '< ' + prop[3]));
+                        for (let i = 3; i < prop.length - 1; i += 2) {{
+                            if (typeof prop[i + 1] === 'string') entries.push(makeEntry(prop[i + 1], '\u2265 ' + prop[i]));
+                        }}
+                    }} else if (op === 'interpolate') {{
+                        for (let i = 3; i < prop.length - 1; i += 2) {{
+                            if (typeof prop[i + 1] === 'string') entries.push(makeEntry(prop[i + 1], prop[i]));
+                        }}
+                    }} else {{
+                        const c = extractColorFromExpression(prop);
+                        if (c) entries.push(makeEntry(c, ''));
+                    }}
+                }}
+                return entries;
             }}
 
             // Group by source-layer (actual data layers)
@@ -430,6 +528,14 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 div.appendChild(swatch);
                 div.appendChild(label);
                 layerToggles.appendChild(div);
+
+                if ({_advanced_legend}) {{
+                    const entriesDiv = document.createElement('div');
+                    entriesDiv.className = 'legend-entries';
+                    const entries = buildLegendEntries(layer);
+                    entries.forEach(e => entriesDiv.appendChild(e));
+                    if (entries.length > 1) div.appendChild(entriesDiv);
+                }}
             }});
         }});
 
