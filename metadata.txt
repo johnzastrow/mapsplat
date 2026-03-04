@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=3.40
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.13
+version=0.6.14
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,14 @@ repository=https://github.com/johnzastrow/mapsplat
 hasProcessingProvider=no
 
 changelog=
+    0.6.14 - Extent layer selector, label halo fix, label docs, Log tab on export
+    - Export Options: dropdown to pick any project layer as the export extent;
+      default is full extent of data; basemap extraction gets +0.5% bbox padding
+    - Label halo no longer always white: text-halo-color/width only emitted when
+      QGIS text buffer is enabled; unchecked buffer = no halo in output
+    - Export button now opens Log tab (was incorrectly opening Offline tab)
+    - README: new Label Settings reference section covering all exported text
+      properties, font variants, halo setup steps, and unsupported features
     0.6.13 - Legend colors, Advanced Legend, map dimensions, Export tab scroll
     - Legend swatches now show correct colors for categorized/graduated layers by
       unwrapping the first literal color from match/step/interpolate expressions

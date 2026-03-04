@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.14 — 2026-03-04
+
+### Added
+- **Export extent layer** — new "Export extent" dropdown in the Export Options
+  group. Pick any layer in the current QGIS project to use its bounding box as
+  the export extent instead of the combined extent of all exported layers.
+  Basemap extraction applies a +0.5 % padding to the chosen bbox so tiles are
+  not clipped right at the data edge; the HTML viewer `fitBounds` call uses the
+  raw bbox. The setting round-trips through Save/Load Config as
+  `extent_layer_name` in `[export]`.
+
+### Fixed
+- **Label halo no longer always white** — `text-halo-color` and
+  `text-halo-width` are now only written to `style.json` when the QGIS label's
+  *Buffer* tab has "Draw text buffer" checked. Previously a white halo (`#ffffff`,
+  1 px) was always emitted regardless of the QGIS setting.
+- **Export opens Log tab** — clicking "Export Web Map" now switches to the Log
+  tab (index 3). It was incorrectly switching to the Offline tab (index 2).
+
+### Documentation
+- **Label settings reference** — new "Label settings" subsection under Supported
+  Symbology in README. Covers every exported text property with a QGIS→MapLibre
+  mapping table, a font-variant note (Noto Sans Regular / Medium / Italic), a
+  step-by-step guide for enabling the text buffer (halo) in QGIS, placement mode
+  explanation, and an explicit list of unsupported label features (drop shadows,
+  callouts, complex expressions, scale-based visibility, letter spacing).
+
 ## v0.6.13 — 2026-03-03
 
 ### Fixed
