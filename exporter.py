@@ -416,9 +416,57 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 return extractColorFromExpression(raw) || '#888888';
             }}
 
-            // Helper to get layer geometry type
-            function getLayerType(layer) {{
-                return layer.type; // fill, line, circle, symbol, etc.
+            // Build the main swatch for a layer row (color, shape, or icon)
+            function makeLayerSwatch(layer) {{
+                const swatch = document.createElement('div');
+                swatch.className = 'legend-swatch';
+                const color = getLayerColor(layer);
+                const ltype = layer.type;
+                if (ltype === 'line') {{
+                    swatch.classList.add('line');
+                    swatch.style.backgroundColor = color;
+                }} else if (ltype === 'circle') {{
+                    swatch.classList.add('circle');
+                    swatch.style.backgroundColor = color;
+                }} else if (ltype === 'symbol') {{
+                    // Try to render the actual icon from MapLibre's image store
+                    const iconName = layer.layout && layer.layout['icon-image'];
+                    const iconKey = typeof iconName === 'string' ? iconName : null;
+                    let rendered = false;
+                    if (iconKey && map.hasImage(iconKey)) {{
+                        try {{
+                            const img = map.getImage(iconKey);
+                            const iw = img.data.width, ih = img.data.height;
+                            const pixels = img.data.data;
+                            if (iw && ih && pixels) {{
+                                const off = document.createElement('canvas');
+                                off.width = iw; off.height = ih;
+                                off.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(pixels), iw, ih), 0, 0);
+                                const c = document.createElement('canvas');
+                                c.width = 16; c.height = 16;
+                                c.getContext('2d').drawImage(off, 0, 0, 16, 16);
+                                swatch.style.cssText = 'background-image:url(' + c.toDataURL() + ');'
+                                    + 'background-size:contain;background-repeat:no-repeat;'
+                                    + 'background-position:center;background-color:transparent;border:none;'
+                                    + 'width:16px;height:16px;min-width:16px;';
+                                rendered = true;
+                            }}
+                        }} catch(e) {{ /* fall through */ }}
+                    }}
+                    if (!rendered) {{
+                        swatch.classList.add('circle');
+                        swatch.style.backgroundColor = color || '#888888';
+                    }}
+                }} else {{
+                    // fill or other
+                    swatch.style.backgroundColor = color;
+                    const outline = layer.paint && layer.paint['fill-outline-color'];
+                    if (outline && typeof outline === 'string' && outline !== color) {{
+                        swatch.style.borderColor = outline;
+                        swatch.style.borderWidth = '2px';
+                    }}
+                }}
+                return swatch;
             }}
 
             // Build per-class/category legend entries from a layer's paint expression
@@ -430,7 +478,10 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 const ltype = layer.type;
                 function makeSwatch(color) {{
                     const s = document.createElement('div');
-                    s.className = 'legend-swatch' + (ltype === 'line' ? ' line' : ltype === 'circle' ? ' circle' : '');
+                    // symbol layers are point-like — show as circle in per-category swatches
+                    const shapeClass = ltype === 'line' ? ' line'
+                        : (ltype === 'circle' || ltype === 'symbol') ? ' circle' : '';
+                    s.className = 'legend-swatch' + shapeClass;
                     s.style.backgroundColor = color;
                     return s;
                 }}
@@ -473,12 +524,26 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 return entries;
             }}
 
-            // Group by source-layer (actual data layers)
-            const seenLayers = new Set();
+            // Group all layers by source-layer, preserving display order.
+            // layers is already reversed so top-rendered layers come first.
+            // For each group pick the most representative layer:
+            //   fill > line > circle > symbol  (symbol/text is last resort)
+            const _pri = {{fill:0, line:1, circle:2, symbol:3}};
+            const _slOrder = [], _slGroups = {{}};
             layers.forEach(layer => {{
-                const sourceLayer = layer['source-layer'];
-                if (seenLayers.has(sourceLayer)) return;
-                seenLayers.add(sourceLayer);
+                const sl = layer['source-layer'];
+                if (!_slGroups[sl]) {{ _slGroups[sl] = []; _slOrder.push(sl); }}
+                _slGroups[sl].push(layer);
+            }});
+
+            _slOrder.forEach(sourceLayer => {{
+                const groupLayers = _slGroups[sourceLayer];
+                // Pick best representative — lowest priority value wins
+                const layer = groupLayers.reduce((best, l) => {{
+                    const bp = _pri[best.type] !== undefined ? _pri[best.type] : 99;
+                    const lp = _pri[l.type]  !== undefined ? _pri[l.type]  : 99;
+                    return lp < bp ? l : best;
+                }});
 
                 const div = document.createElement('div');
                 div.className = 'layer-item';
@@ -488,29 +553,7 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 checkbox.id = 'toggle-' + sourceLayer;
                 checkbox.checked = true;
 
-                // Create legend swatch
-                const swatch = document.createElement('div');
-                swatch.className = 'legend-swatch';
-                const color = getLayerColor(layer);
-                const layerType = getLayerType(layer);
-
-                // Style swatch based on geometry type
-                if (layerType === 'line') {{
-                    swatch.classList.add('line');
-                    swatch.style.backgroundColor = color;
-                }} else if (layerType === 'circle') {{
-                    swatch.classList.add('circle');
-                    swatch.style.backgroundColor = color;
-                }} else {{
-                    // fill or other
-                    swatch.style.backgroundColor = color;
-                    // Add outline color if different
-                    const outlineColor = layer.paint?.['fill-outline-color'];
-                    if (outlineColor && outlineColor !== color) {{
-                        swatch.style.borderColor = outlineColor;
-                        swatch.style.borderWidth = '2px';
-                    }}
-                }}
+                const swatch = makeLayerSwatch(layer);
 
                 const label = document.createElement('label');
                 label.htmlFor = checkbox.id;
@@ -518,12 +561,9 @@ def generate_html_viewer(settings, style_json, bounds, use_external_style=False,
                 label.title = sourceLayer;
 
                 checkbox.addEventListener('change', () => {{
-                    // Toggle all layers with this source-layer
-                    style.layers.forEach(l => {{
-                        if (l['source-layer'] === sourceLayer) {{
-                            map.setLayoutProperty(l.id, 'visibility',
-                                checkbox.checked ? 'visible' : 'none');
-                        }}
+                    groupLayers.forEach(l => {{
+                        map.setLayoutProperty(l.id, 'visibility',
+                            checkbox.checked ? 'visible' : 'none');
                     }});
                 }});
 
