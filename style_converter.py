@@ -243,7 +243,13 @@ class StyleConverter:
     def _scale_to_zoom(scale_denom):
         """Convert a QGIS scale denominator to a MapLibre zoom level.
 
-        Uses the Web Mercator scale at zoom 0 (559,082,264 at equator, 96 DPI).
+        MapLibre GL JS uses 512×512 tiles, so the zoom-0 scale denominator is
+        half the OGC/WMTS 256-tile value (559,082,264 → 279,541,132).
+        Using the 256-tile constant would produce zoom values 1 level too high,
+        requiring the user to zoom in further than the QGIS setting intends.
+
+        Reference: OGC WMTS 256-tile zoom-0 denominator = 559,082,264 at
+        0.28 mm/px.  MapLibre 512-tile equivalent = 559,082,264 / 2 = 279,541,132.
 
         :param scale_denom: QGIS scale denominator (e.g. 50000 for 1:50 000).
         :returns: Zoom level clamped to [0, 24], rounded to 2 decimal places,
@@ -251,7 +257,7 @@ class StyleConverter:
         """
         if scale_denom <= 0:
             return None
-        zoom = math.log2(559082264.028 / scale_denom)
+        zoom = math.log2(279541132.014 / scale_denom)
         return round(max(0.0, min(24.0, zoom)), 2)
 
     def _get_zoom_range(self, layer):

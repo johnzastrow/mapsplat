@@ -1208,18 +1208,18 @@ class TestScaleToZoom(unittest.TestCase):
         self.assertIsNone(self.sc._scale_to_zoom(-100))
 
     def test_zoom_0_scale(self):
-        # Denominator ~559,082,264 should give zoom ≈ 0
-        zoom = self.sc._scale_to_zoom(559082264.028)
+        # Denominator ~279,541,132 (512-tile constant) should give zoom ≈ 0
+        zoom = self.sc._scale_to_zoom(279541132.014)
         self.assertAlmostEqual(zoom, 0.0, places=1)
 
     def test_zoom_10_scale(self):
-        # Denominator = 559082264 / 2^10 ≈ 545,978
-        denom = 559082264.028 / (2 ** 10)
+        # Denominator = 279541132 / 2^10
+        denom = 279541132.014 / (2 ** 10)
         zoom = self.sc._scale_to_zoom(denom)
         self.assertAlmostEqual(zoom, 10.0, places=1)
 
     def test_zoom_14_scale(self):
-        denom = 559082264.028 / (2 ** 14)
+        denom = 279541132.014 / (2 ** 14)
         zoom = self.sc._scale_to_zoom(denom)
         self.assertAlmostEqual(zoom, 14.0, places=1)
 
