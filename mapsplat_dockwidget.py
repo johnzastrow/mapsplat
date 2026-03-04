@@ -144,6 +144,7 @@ class MapSplatDockWidget(QDockWidget):
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.NoFrame)
+        scroll_area.setMinimumHeight(80)  # allow shrinking; content scrolls
         scroll_widget = QWidget()
         scroll_layout = QVBoxLayout(scroll_widget)
         scroll_layout.setContentsMargins(0, 0, 4, 0)
