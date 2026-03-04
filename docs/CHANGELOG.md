@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.16 — 2026-03-04
+
+### Fixed
+- **Scale→zoom constant corrected for MapLibre 512px tiles** — the previous
+  constant (559,082,264) is the OGC/WMTS standard for 256×256 tiles, but
+  MapLibre GL JS renders with 512×512 tiles, making every computed
+  `minzoom`/`maxzoom` value 1 zoom level too high. Users had to zoom in one
+  full extra level before scale-dependent layers appeared. Fixed by using
+  279,541,132 (= 559,082,264 ÷ 2), the correct zoom-0 denominator for
+  512-tile renderers.
+
 ## v0.6.15 — 2026-03-04
 
 ### Added

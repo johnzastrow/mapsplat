@@ -2,7 +2,7 @@
 name=MapSplat
 qgisMinimumVersion=3.40
 description=Export QGIS projects to static web maps using PMTiles and MapLibre GL JS
-version=0.6.15
+version=0.6.16
 author=John Zastrow
 email=john@example.com
 
@@ -22,6 +22,11 @@ repository=https://github.com/johnzastrow/mapsplat
 hasProcessingProvider=no
 
 changelog=
+    0.6.16 - Fix scale→zoom constant for MapLibre 512px tiles
+    - Previous constant (559,082,264) assumed 256px tiles; MapLibre uses 512px
+      tiles so zoom values were 1 level too high, requiring extra zoom-in
+    - Corrected to 279,541,132 (= 559,082,264 / 2); features now appear at the
+      same scale as set in QGIS Layer Properties → Rendering
     0.6.15 - Scale-dependent visibility
     - Layer scale-based visibility (Layer Properties → Rendering) is now read and
       converted to MapLibre minzoom/maxzoom on all symbol and label layers

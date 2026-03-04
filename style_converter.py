@@ -17,7 +17,7 @@ Supported style properties:
 - Multiple symbol layers
 """
 
-__version__ = "0.6.15"
+__version__ = "0.6.16"
 
 import math
 import os

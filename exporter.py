@@ -8,7 +8,7 @@ This module handles the actual export process:
 - Generating the HTML viewer
 """
 
-__version__ = "0.6.15"
+__version__ = "0.6.16"
 
 import os
 import sys
