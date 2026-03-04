@@ -22,6 +22,7 @@ _COMMENTS = {
         "imported_style_path": "Path to an external style.json to merge (leave blank to skip)",
         "write_log": "Write export log to export.log in the output folder",
         "bundle_offline": "Download MapLibre GL JS/CSS and PMTiles JS at export time for offline viewing",
+        "extent_layer_name": "Layer name used to set the export extent; leave blank for full data extent",
     },
     "basemap": {
         "enabled": "Enable basemap overlay mode",
@@ -57,6 +58,7 @@ _SECTION_KEYS = {
         "imported_style_path",
         "write_log",
         "bundle_offline",
+        "extent_layer_name",
     ],
     "basemap": [
         "enabled",

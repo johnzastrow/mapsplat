@@ -193,6 +193,14 @@ class MapSplatDockWidget(QDockWidget):
         )
         options_layout.addWidget(self.chk_style_only)
 
+        # Export extent layer
+        extent_layout = QHBoxLayout()
+        extent_layout.addWidget(QLabel("Export extent:"))
+        self.combo_extent_layer = QComboBox()
+        self.combo_extent_layer.addItem("Full extent of data", None)
+        extent_layout.addWidget(self.combo_extent_layer, 1)
+        options_layout.addLayout(extent_layout)
+
         # Import style button
         style_import_layout = QHBoxLayout()
         self.btn_import_style = QPushButton("Import style.json...")
@@ -485,8 +493,13 @@ class MapSplatDockWidget(QDockWidget):
             self.txt_output_folder.setText(last_folder)
 
     def refresh_layer_list(self):
-        """Refresh the layer list from the current project."""
+        """Refresh the layer list and extent combo from the current project."""
         self.layer_list.clear()
+
+        # Repopulate extent-layer combo, preserving current selection by layer id
+        current_extent_id = self.combo_extent_layer.currentData()
+        self.combo_extent_layer.clear()
+        self.combo_extent_layer.addItem("Full extent of data", None)
 
         project = QgsProject.instance()
         # Use layerTreeRoot().layerOrder() so the list reflects QGIS panel order (top → bottom)
@@ -513,6 +526,15 @@ class MapSplatDockWidget(QDockWidget):
             item.setText(f"{prefix} {layer.name()}")
             item.setData(_UserRole, layer.id())
             self.layer_list.addItem(item)
+
+            # Also add to extent combo (all layer types accepted)
+            self.combo_extent_layer.addItem(layer.name(), layer.id())
+
+        # Restore previously selected extent layer if it still exists
+        if current_extent_id:
+            idx = self.combo_extent_layer.findData(current_extent_id)
+            if idx >= 0:
+                self.combo_extent_layer.setCurrentIndex(idx)
 
         # Auto-populate project name from QGIS project
         project_name = project.baseName()
@@ -787,6 +809,7 @@ class MapSplatDockWidget(QDockWidget):
             "advanced_legend": self.chk_advanced_legend.isChecked(),
             "map_width": self.spin_map_width.value(),
             "map_height": self.spin_map_height.value(),
+            "extent_layer_id": self.combo_extent_layer.currentData(),
         }
 
         # Show progress and cancel button
@@ -889,6 +912,11 @@ class MapSplatDockWidget(QDockWidget):
                 "imported_style_path": self.imported_style_path or "",
                 "write_log": self.chk_save_log.isChecked(),
                 "bundle_offline": self.chk_bundle_offline.isChecked(),
+                "extent_layer_name": (
+                    self.combo_extent_layer.currentText()
+                    if self.combo_extent_layer.currentData() is not None
+                    else ""
+                ),
             },
             "basemap": {
                 "enabled": self.basemap_group.isChecked(),
@@ -1001,6 +1029,21 @@ class MapSplatDockWidget(QDockWidget):
 
         if "bundle_offline" in export:
             self.chk_bundle_offline.setChecked(bool(export["bundle_offline"]))
+            applied += 1
+
+        if "extent_layer_name" in export:
+            name = export["extent_layer_name"]
+            if name:
+                idx = self.combo_extent_layer.findText(name)
+                if idx >= 0:
+                    self.combo_extent_layer.setCurrentIndex(idx)
+                else:
+                    self._log(
+                        f"Extent layer '{name}' from config not found in project — using full extent",
+                        "warning",
+                    )
+            else:
+                self.combo_extent_layer.setCurrentIndex(0)  # "Full extent of data"
             applied += 1
 
         # --- [basemap] section ---

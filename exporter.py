@@ -703,7 +703,7 @@ class MapSplatExporter(QObject):
                 )
                 self.finished.emit(False, "")
                 return
-            bounds = self._calculate_bounds(layers["vector"])
+            bounds = self._expand_bounds(self._get_bounds(layers))
             self.log_message.emit("Extracting basemap to bounding box...", "info")
             success = self._extract_basemap(output_dir, bounds)
             if not success:
@@ -1265,8 +1265,9 @@ class MapSplatExporter(QObject):
         :param layers: Dictionary of layers
         :param bundle_offline: If True, reference local lib/ assets instead of CDN
         """
-        # Calculate initial bounds from layers
-        bounds = self._calculate_bounds(layers["vector"])
+        # Calculate viewer bounds from extent layer (or data) — no expansion here;
+        # MapLibre's fitBounds padding keeps the view slightly inset from the bounds.
+        bounds = self._get_bounds(layers)
 
         # If exporting style.json, reference it externally instead of embedding
         use_external_style = self.settings.get("export_style_json", False)
@@ -1275,6 +1276,41 @@ class MapSplatExporter(QObject):
 
         with open(html_path, "w", encoding="utf-8") as f:
             f.write(html_content)
+
+    def _get_bounds(self, layers):
+        """Return bounds for the export, honouring the extent-layer setting.
+
+        If ``extent_layer_id`` is set in settings and the layer exists, its
+        extent is used; otherwise falls back to the combined data extent.
+
+        :param layers: Dict with 'vector' list (fallback when no extent layer).
+        :returns: [west, south, east, north] in EPSG:4326
+        """
+        extent_id = self.settings.get("extent_layer_id")
+        if extent_id:
+            layer = self.project.mapLayer(extent_id)
+            if layer:
+                self.log_message.emit(
+                    f"Using extent of '{layer.name()}' for export bounds", "info"
+                )
+                return self._calculate_bounds([layer])
+            else:
+                self.log_message.emit(
+                    "Extent layer not found in project — using full data extent", "warning"
+                )
+        return self._calculate_bounds(layers["vector"])
+
+    @staticmethod
+    def _expand_bounds(bounds, pct=0.005):
+        """Expand [W, S, E, N] bounds by *pct* fraction on every side.
+
+        A 0.5 % expansion (pct=0.005) adds a small buffer so that basemap
+        tiles are not clipped exactly at the data edge.
+        """
+        west, south, east, north = bounds
+        dw = (east - west) * pct
+        dh = (north - south) * pct
+        return [west - dw, south - dh, east + dw, north + dh]
 
     def _calculate_bounds(self, layers):
         """Calculate combined bounds of all layers.
