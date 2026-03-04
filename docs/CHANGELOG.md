@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## v0.6.15 — 2026-03-04
+
+### Added
+- **Scale-dependent visibility** — QGIS *Layer Properties → Rendering →
+  Scale-based visibility* is now exported. `minimumScale()` (most-zoomed-out
+  limit) maps to MapLibre `minzoom`; `maximumScale()` (most-zoomed-in limit)
+  maps to `maxzoom`. Both are applied to every MapLibre symbol layer and the
+  corresponding label layer. A scale of 0 in QGIS means no limit in that
+  direction and the property is omitted from `style.json`. Zoom values are
+  computed as `log2(559 082 264 / scale_denominator)` and clamped to [0, 24].
+  13 new unit tests cover `_scale_to_zoom()` and `_get_zoom_range()`.
+
 ## v0.6.14 — 2026-03-04
 
 ### Added
