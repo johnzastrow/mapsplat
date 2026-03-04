@@ -1194,5 +1194,98 @@ class TestGraduatedPointInterpolateExpression(unittest.TestCase):
         self.assertEqual(color_expr[-1], "#ff0000")
 
 
+class TestScaleToZoom(unittest.TestCase):
+    """Test _scale_to_zoom() scale-denominator → zoom conversion."""
+
+    def setUp(self):
+        from style_converter import StyleConverter
+        self.sc = StyleConverter([], {})
+
+    def test_zero_returns_none(self):
+        self.assertIsNone(self.sc._scale_to_zoom(0))
+
+    def test_negative_returns_none(self):
+        self.assertIsNone(self.sc._scale_to_zoom(-100))
+
+    def test_zoom_0_scale(self):
+        # Denominator ~559,082,264 should give zoom ≈ 0
+        zoom = self.sc._scale_to_zoom(559082264.028)
+        self.assertAlmostEqual(zoom, 0.0, places=1)
+
+    def test_zoom_10_scale(self):
+        # Denominator = 559082264 / 2^10 ≈ 545,978
+        denom = 559082264.028 / (2 ** 10)
+        zoom = self.sc._scale_to_zoom(denom)
+        self.assertAlmostEqual(zoom, 10.0, places=1)
+
+    def test_zoom_14_scale(self):
+        denom = 559082264.028 / (2 ** 14)
+        zoom = self.sc._scale_to_zoom(denom)
+        self.assertAlmostEqual(zoom, 14.0, places=1)
+
+    def test_clamped_to_zero(self):
+        # Extremely small scale (huge denominator) clamps to 0
+        zoom = self.sc._scale_to_zoom(1e12)
+        self.assertEqual(zoom, 0.0)
+
+    def test_clamped_to_24(self):
+        # Extremely large scale (tiny denominator) clamps to 24
+        zoom = self.sc._scale_to_zoom(0.001)
+        self.assertEqual(zoom, 24.0)
+
+    def test_returns_float(self):
+        zoom = self.sc._scale_to_zoom(50000)
+        self.assertIsInstance(zoom, float)
+
+
+class TestGetZoomRange(unittest.TestCase):
+    """Test _get_zoom_range() using mock layers."""
+
+    def _make_layer(self, has_scale_vis, min_scale=0, max_scale=0):
+        from unittest.mock import MagicMock
+        layer = MagicMock()
+        layer.hasScaleBasedVisibility.return_value = has_scale_vis
+        layer.minimumScale.return_value = min_scale
+        layer.maximumScale.return_value = max_scale
+        return layer
+
+    def setUp(self):
+        from style_converter import StyleConverter
+        self.sc = StyleConverter([], {})
+
+    def test_no_scale_vis_returns_none_none(self):
+        layer = self._make_layer(False)
+        self.assertEqual(self.sc._get_zoom_range(layer), (None, None))
+
+    def test_scale_vis_both_limits(self):
+        # minimumScale (zoomed-out limit) = 500000 → small zoom (minzoom)
+        # maximumScale (zoomed-in limit)  = 1000   → large zoom (maxzoom)
+        layer = self._make_layer(True, min_scale=500000, max_scale=1000)
+        minzoom, maxzoom = self.sc._get_zoom_range(layer)
+        self.assertIsNotNone(minzoom)
+        self.assertIsNotNone(maxzoom)
+        self.assertLess(minzoom, maxzoom)
+
+    def test_scale_vis_zero_min_gives_none_minzoom(self):
+        # minimumScale = 0 means no zoomed-out limit
+        layer = self._make_layer(True, min_scale=0, max_scale=1000)
+        minzoom, maxzoom = self.sc._get_zoom_range(layer)
+        self.assertIsNone(minzoom)
+        self.assertIsNotNone(maxzoom)
+
+    def test_scale_vis_zero_max_gives_none_maxzoom(self):
+        # maximumScale = 0 means no zoomed-in limit
+        layer = self._make_layer(True, min_scale=500000, max_scale=0)
+        minzoom, maxzoom = self.sc._get_zoom_range(layer)
+        self.assertIsNotNone(minzoom)
+        self.assertIsNone(maxzoom)
+
+    def test_minzoom_less_than_maxzoom_for_typical_range(self):
+        # 1:500 000 (zoomed out) → small zoom; 1:5 000 (zoomed in) → large zoom
+        layer = self._make_layer(True, min_scale=500000, max_scale=5000)
+        minzoom, maxzoom = self.sc._get_zoom_range(layer)
+        self.assertLess(minzoom, maxzoom)
+
+
 if __name__ == "__main__":
     unittest.main()

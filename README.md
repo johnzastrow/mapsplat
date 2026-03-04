@@ -704,7 +704,7 @@ The following QGIS label options have no equivalent in MapLibre GL Style JSON an
 - **Background shapes** (label bounding box fill/border) — no MapLibre equivalent
 - **Callout lines** (leader lines) — no MapLibre equivalent
 - **Complex label expressions** — only simple field names are supported; QGIS string concatenation expressions (`'Name: ' || "field"`) are not parsed and will produce no label
-- **Scale-based label visibility** — `minzoom` / `maxzoom` are not set per-label; labels appear at all zoom levels
+- **Scale-based label visibility** — `minzoom` / `maxzoom` are set on both symbol and label layers from the QGIS *Rendering → Scale-based visibility* setting, but the conversion is an approximation (Web Mercator at equator, 96 DPI); results may differ slightly from the QGIS canvas at the exact threshold scale
 - **Letter spacing** — not available in MapLibre for vector tile labels
 - **Multiple text formats** within one label (e.g. bold first word, regular rest)
 

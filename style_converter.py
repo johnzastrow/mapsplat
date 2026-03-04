@@ -19,6 +19,7 @@ Supported style properties:
 
 __version__ = "0.6.14"
 
+import math
 import os
 from qgis.core import (
     QgsVectorLayer,
@@ -169,12 +170,22 @@ class StyleConverter:
         # but MapLibre's style["layers"] array is bottom-to-top (first entry = bottom).
         # Reversing self.layers maps QGIS panel order correctly to MapLibre rendering order.
         for layer in reversed(self.layers):
+            minzoom, maxzoom = self._get_zoom_range(layer)
             layer_styles = self._convert_layer(layer)
+            for ls in layer_styles:
+                if minzoom is not None:
+                    ls["minzoom"] = minzoom
+                if maxzoom is not None:
+                    ls["maxzoom"] = maxzoom
             style["layers"].extend(layer_styles)
 
             # Add labels if enabled
             label_layer = self._convert_labels(layer)
             if label_layer:
+                if minzoom is not None:
+                    label_layer["minzoom"] = minzoom
+                if maxzoom is not None:
+                    label_layer["maxzoom"] = maxzoom
                 style["layers"].append(label_layer)
 
         return style
@@ -227,6 +238,40 @@ class StyleConverter:
         elif italic:
             return ["Noto Sans Italic"]
         return ["Noto Sans Regular"]
+
+    @staticmethod
+    def _scale_to_zoom(scale_denom):
+        """Convert a QGIS scale denominator to a MapLibre zoom level.
+
+        Uses the Web Mercator scale at zoom 0 (559,082,264 at equator, 96 DPI).
+
+        :param scale_denom: QGIS scale denominator (e.g. 50000 for 1:50 000).
+        :returns: Zoom level clamped to [0, 24], rounded to 2 decimal places,
+                  or None if scale_denom is <= 0.
+        """
+        if scale_denom <= 0:
+            return None
+        zoom = math.log2(559082264.028 / scale_denom)
+        return round(max(0.0, min(24.0, zoom)), 2)
+
+    def _get_zoom_range(self, layer):
+        """Return (minzoom, maxzoom) for a layer from QGIS scale-based visibility.
+
+        QGIS ``minimumScale()`` is the most-zoomed-out limit (largest scale
+        denominator) and maps to MapLibre ``minzoom`` (smallest zoom number).
+        QGIS ``maximumScale()`` is the most-zoomed-in limit (smallest scale
+        denominator) and maps to MapLibre ``maxzoom`` (largest zoom number).
+
+        :param layer: QgsMapLayer
+        :returns: Tuple (minzoom, maxzoom) where each element is a float or
+                  None if that limit is not set.  Both are None when
+                  ``hasScaleBasedVisibility()`` is False.
+        """
+        if not layer.hasScaleBasedVisibility():
+            return (None, None)
+        minzoom = self._scale_to_zoom(layer.minimumScale())
+        maxzoom = self._scale_to_zoom(layer.maximumScale())
+        return (minzoom, maxzoom)
 
     def _convert_labels(self, layer):
         """Convert layer labels to MapLibre symbol layer.
