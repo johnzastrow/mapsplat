@@ -773,7 +773,7 @@ class MapSplatDockWidget(QDockWidget):
                 self._log(f"Warning: could not open log file: {e}", "warning")
 
         self._log("Starting export...", "info")
-        self.tabs.setCurrentIndex(2)
+        self.tabs.setCurrentIndex(3)  # Log tab
 
         # Gather selected layers
         selected_layer_ids = []

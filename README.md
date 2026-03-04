@@ -6,7 +6,7 @@
 
 [![QGIS](https://img.shields.io/badge/QGIS-3.40%2B-green.svg)](https://qgis.org)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-0.6.12-orange.svg)](docs/CHANGELOG.md)
+[![Version](https://img.shields.io/badge/Version-0.6.13-orange.svg)](docs/CHANGELOG.md)
 
 MapSplat is a QGIS plugin that exports (splats) your project layers to self-contained static web map packages. The output can be hosted on any static web server, cloud storage, or run locally — no tile server, no backend, no new stack to learn. Check the [docs/](docs/) directory for design notes, a full changelog, and technical details on the PMTiles + MapLibre GL JS architecture.
 
@@ -41,6 +41,7 @@ MapSplat is a QGIS plugin that exports (splats) your project layers to self-cont
   - [CORS configuration](#cors-configuration)
 - [Style Editing with Maputnik](#style-editing-with-maputnik)
 - [Supported Symbology](#supported-symbology)
+  - [Label settings](#label-settings)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -626,6 +627,86 @@ CORS is only needed when `index.html` and `.pmtiles` files are served from **dif
 **Unsupported fill types**: Gradient fills, shape-burst fills, and pattern fills are approximated as solid colors. See [Unsupported fill and symbol types](#unsupported-fill-and-symbol-types) for details.
 
 **Unit conversion**: QGIS millimetre sizes are converted to pixels at 96 DPI (1 mm ≈ 3.78 px).
+
+### Label settings
+
+Labels are converted from QGIS *Layer Properties → Labels* to MapLibre `symbol` layers. The following properties are read; everything else is silently omitted.
+
+#### What is exported
+
+| QGIS label property | Where to set it in QGIS | MapLibre property |
+|---|---|---|
+| Label field | *Labels → Label with* | `text-field` |
+| Font family / bold / italic | *Text → Font* | `text-font` (Noto Sans Regular / Medium / Italic — see Font note) |
+| Font size | *Text → Size* | `text-size` (converted to px; minimum 8 px enforced) |
+| Text color | *Text → Color* | `text-color` |
+| Text opacity | *Text → Opacity* | `text-opacity` |
+| Capitalization | *Text → Style → Capitalization* | `text-transform` (uppercase / lowercase only; title-case is not available in MapLibre) |
+| Line height | *Text → Formatting → Line height* | `text-line-height` |
+| Word wrap | *Formatting → Wrap lines to* | `text-max-width` |
+| Multiline alignment | *Formatting → Alignment* | `text-justify` (left / center / right) |
+| Text buffer (halo) | *Buffer → Draw text buffer* | `text-halo-color`, `text-halo-width` — **see below** |
+| Quadrant / anchor (points) | *Placement → Quadrant* | `text-anchor` (exact mode) or `text-variable-anchor` (auto mode) |
+| Offset distance (points) | *Placement → Distance* | `text-offset` / `text-radial-offset` |
+| X / Y offset (points) | *Placement → Offset X/Y* | combined into `text-offset` |
+| Repeat distance (lines) | *Placement → Repeat every* | `symbol-spacing` |
+| Curved placement (lines) | *Placement → Placement → Curved* | `symbol-placement: line` + `text-max-angle: 45` |
+| Horizontal on line | *Placement → Placement → Horizontal* | `symbol-placement: line-center` |
+
+#### Font note
+
+MapLibre requires fonts to be served from a glyph tile server. MapSplat uses the Protomaps font server, which provides three variants:
+
+| QGIS font style | MapLibre font used |
+|---|---|
+| Bold (any family) | `Noto Sans Medium` |
+| Italic (any family) | `Noto Sans Italic` |
+| Regular (any family) | `Noto Sans Regular` |
+
+The font **family** you choose in QGIS is ignored — only bold/italic flags are carried through. If you need a specific typeface, edit `style.json` in Maputnik and point `glyphs` at a font server that hosts your chosen family.
+
+#### Text buffer (halo)
+
+The text buffer in QGIS is the white (or colored) outline around label text that improves legibility against busy backgrounds. In MapLibre this maps to `text-halo-color` and `text-halo-width`.
+
+**How to enable it in QGIS:**
+
+1. Open *Layer Properties → Labels → Buffer* tab
+2. Check **Draw text buffer**
+3. Set **Size** (e.g. 1 mm is a good starting point; 0.5 mm is subtle, 2 mm is prominent)
+4. Set **Color** (white `#ffffff` is the most common choice)
+5. Optionally lower **Opacity** for a semi-transparent halo
+
+**What MapSplat reads:**
+
+- **Buffer enabled**: only emitted in the output when *Draw text buffer* is checked. If the buffer is unchecked, no halo appears in the exported map — even if you previously had one.
+- **Buffer color**: full color including alpha channel. If you set the color's alpha to less than 100 %, or lower the *Opacity* slider, the exported halo uses `rgba(...)` to preserve transparency.
+- **Buffer size**: converted from QGIS units to pixels using the same unit conversion as symbol sizes (1 mm ≈ 3.78 px). A minimum of 1 px is enforced — very small buffers will snap up to 1 px.
+- **Buffer opacity**: both the buffer's *Opacity* slider and the color's own alpha channel are read. Either or both can be used.
+
+**Common pitfall**: the buffer is a per-label-format setting, not a layer-level setting. If you copy a style from another layer, check that the buffer is still enabled on the destination layer.
+
+#### Placement modes
+
+The **Viewer tab → Label placement** setting controls how point-layer labels are positioned:
+
+- **Match QGIS (exact)**: reads the *Quadrant* setting and X/Y offset from QGIS. Labels appear in the same relative position as in the QGIS canvas (above-right, below-left, etc.). Overlapping labels are not automatically moved — you may see clutter at small zooms.
+- **Auto-place (avoid overlaps)**: ignores the quadrant and instead uses MapLibre's `text-variable-anchor` with all eight positions. MapLibre tries each position in order and picks one that does not overlap other labels. Better for dense datasets; less predictable positioning.
+
+Line labels follow the QGIS placement setting (Curved vs. Horizontal) regardless of the mode switch.
+Polygon labels always use centroid placement.
+
+#### What is NOT exported
+
+The following QGIS label options have no equivalent in MapLibre GL Style JSON and are silently omitted:
+
+- **Drop shadows** — no MapLibre equivalent
+- **Background shapes** (label bounding box fill/border) — no MapLibre equivalent
+- **Callout lines** (leader lines) — no MapLibre equivalent
+- **Complex label expressions** — only simple field names are supported; QGIS string concatenation expressions (`'Name: ' || "field"`) are not parsed and will produce no label
+- **Scale-based label visibility** — `minzoom` / `maxzoom` are not set per-label; labels appear at all zoom levels
+- **Letter spacing** — not available in MapLibre for vector tile labels
+- **Multiple text formats** within one label (e.g. bold first word, regular rest)
 
 ---
 

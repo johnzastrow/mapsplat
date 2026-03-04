@@ -276,8 +276,8 @@ class StyleConverter:
 
         # Halo / buffer
         buffer_settings = text_format.buffer()
-        halo_color = self.DEFAULT_HALO_COLOR
-        halo_width = 1
+        halo_color = None
+        halo_width = None
         if buffer_settings.enabled():
             halo = buffer_settings.color()
             try:
@@ -306,11 +306,10 @@ class StyleConverter:
             "text-padding": 2,
         }
 
-        paint = {
-            "text-color": text_color,
-            "text-halo-color": halo_color,
-            "text-halo-width": halo_width,
-        }
+        paint = {"text-color": text_color}
+        if halo_color is not None:
+            paint["text-halo-color"] = halo_color
+            paint["text-halo-width"] = halo_width
 
         # Text opacity
         try:
